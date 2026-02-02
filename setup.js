@@ -194,3 +194,26 @@ function setupUserSheet_(ss) {
   sheet.getRange(2, 1, 1, row.length).setValues([row]);
   Logger.log('ユーザーマスタにログインユーザーの行を1件追加しました: ' + currentEmail);
 }
+/**
+ * Script Properties を簡単に設定するヘルパー関数
+ * エディタからこの関数を実行すると、プロパティが設定されます。
+ */
+function setupScriptProperties() {
+  var props = PropertiesService.getScriptProperties();
+
+  // ↓↓↓↓↓ ここにAPIキーを入力してください ↓↓↓↓↓
+  var GEMINI_API_KEY = 'YOUR_API_KEY_HERE';
+  // ↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑
+
+  if (GEMINI_API_KEY !== 'YOUR_API_KEY_HERE') {
+    props.setProperty('GEMINI_API_KEY', GEMINI_API_KEY);
+    Logger.log('GEMINI_API_KEY を設定しました。');
+  } else {
+    Logger.log('【注意】GEMINI_API_KEY がデフォルトのままです。書き換えてから実行してください。');
+  }
+
+  // スプレッドシートIDも必要ならここで設定可能
+  var AppSSId = '1vQAZTBpBBnZtUpcSwg1lXlOvP7wqIwQFwrbT4A1xMTk'; // 現在のID
+  props.setProperty('APP_SPREADSHEET_ID', AppSSId);
+  Logger.log('APP_SPREADSHEET_ID を設定しました: ' + AppSSId);
+}

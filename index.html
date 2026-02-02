@@ -1,23 +1,30 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <base target="_top">
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>経費精算 Pro</title>
   <style>
     /* ========== ベース設定 ========== */
     :root {
-      --primary: #2563eb; --primary-dark: #1d4ed8;
-      --accent: #f59e0b; 
-      --bg: #f8fafc; --text: #0f172a; --sub-text: #64748b; --border: #e2e8f0;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --accent: #f59e0b;
+      --bg: #f8fafc;
+      --text: #0f172a;
+      --sub-text: #64748b;
+      --border: #e2e8f0;
       /* セーフエリアの初期値（未対応ブラウザ用） */
-      --safe-top: 20px; 
+      --safe-top: 20px;
       --safe-bottom: 20px;
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1);
-      --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+      --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
     }
+
     /* iPhone等のセーフエリア取得 */
     @supports (padding-top: env(safe-area-inset-top)) {
       :root {
@@ -26,468 +33,1190 @@
       }
     }
 
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
-    
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      outline: none;
+    }
+
+    html {
+      height: 100%;
+      overflow: hidden;
+      /* Default: fixed viewport for App mode */
+    }
+
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      margin: 0; padding: 0; width: 100%; height: 100dvh;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100dvh;
       background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
-      color: var(--text); font-size: 18px; overflow: hidden;
+      color: var(--text);
+      font-size: 18px;
+      overflow: hidden;
+      /* Default: internal scroll */
     }
 
     /* アプリ全体レイアウト */
-    .app-root { 
-      width: 100%; height: 100%; 
-      display: flex; flex-direction: column; 
+    .app-root {
+      width: 100%;
+      min-height: 100%;
+      /* height: 100%; */
+      display: flex;
+      flex-direction: column;
       padding-top: var(--safe-top);
       /* padding-bottomは個別のビューで制御するため削除 */
     }
-    .view-section { 
-      flex: 1; display: none; flex-direction: column; overflow: hidden; height: 100%; position: relative;
+
+    .view-section {
+      flex: 1;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      /* Default: internal scroll */
+      height: 100%;
+      /* Default: fill viewport */
+      position: relative;
     }
-    .view-section.active { display: flex; }
+
+    /* Admin View: Allow auto height for global scroll */
+    #adminView.view-section {
+      height: auto;
+      overflow: visible;
+    }
+
+    .view-section.active {
+      display: flex;
+    }
 
     /* ========== ヘッダー ========== */
     header {
-      flex: 0 0 auto; height: 80px;
-      padding: 0 24px; background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95));
-      backdrop-filter: blur(20px); border-bottom: 1px solid rgba(226, 232, 240, 0.6);
-      display: flex; align-items: center; gap: 20px; z-index: 20;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      flex: 0 0 auto;
+      position: sticky;
+      top: 0;
+      height: 80px;
+      padding: 0 24px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      z-index: 20;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
     }
-    h1 { 
-      margin: 0; font-size: 1.7rem; font-weight: 800; 
+
+    h1 {
+      margin: 0;
+      font-size: 1.7rem;
+      font-weight: 800;
       background: linear-gradient(135deg, #2563eb, #3b82f6);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-      background-clip: text; white-space: nowrap; letter-spacing: -0.01em;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
     }
-    #applicantSelector { 
-      flex: 1; min-width: 0; height: 52px;
-      padding: 0 20px; border-radius: 14px; border: 1px solid rgba(226, 232, 240, 0.8); 
-      font-size: 1.2rem; font-weight: 600; 
+
+    #applicantSelector {
+      flex: 1;
+      min-width: 0;
+      height: 52px;
+      padding: 0 20px;
+      border-radius: 14px;
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      font-size: 1.2rem;
+      font-weight: 600;
       background: linear-gradient(135deg, rgba(241, 245, 249, 0.9), rgba(255, 255, 255, 0.9));
-      color: var(--text); backdrop-filter: blur(8px);
-      appearance: none; -webkit-appearance: none;
+      color: var(--text);
+      backdrop-filter: blur(8px);
+      appearance: none;
+      -webkit-appearance: none;
       background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007CB2%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-      background-repeat: no-repeat; background-position: right 20px top 50%; background-size: 16px;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.06); transition: all 0.2s;
+      background-repeat: no-repeat;
+      background-position: right 20px top 50%;
+      background-size: 16px;
+      box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+      transition: all 0.2s;
     }
+
     #applicantSelector:focus {
-      outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
+
     .help-btn {
-      width: 48px; height: 48px; background: linear-gradient(135deg, #06b6d4, #0891b2);
-      color: white; border: none; border-radius: 12px; font-size: 1.3rem;
-      display: flex; align-items: center; justify-content: center; cursor: pointer;
-      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3); transition: all 0.2s;
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #06b6d4, #0891b2);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.3rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+      transition: all 0.2s;
     }
-    .help-btn:active { transform: scale(0.95); }
-    
-    .admin-switch-btn { 
-      padding: 14px 20px; background: linear-gradient(135deg, #475569, #334155); color: white; border: none;
-      border-radius: 14px; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: none;
-      box-shadow: 0 3px 10px rgba(71, 85, 105, 0.3); transition: all 0.2s; min-height: 52px;
+
+    .help-btn:active {
+      transform: scale(0.95);
     }
-    .admin-switch-btn:active { transform: scale(0.95); }
+
+    .admin-switch-btn {
+      padding: 14px 20px;
+      background: linear-gradient(135deg, #475569, #334155);
+      color: white;
+      border: none;
+      border-radius: 14px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+      box-shadow: 0 3px 10px rgba(71, 85, 105, 0.3);
+      transition: all 0.2s;
+      min-height: 52px;
+    }
+
+    .admin-switch-btn:active {
+      transform: scale(0.95);
+    }
 
     /* ========== ユーザー画面 ========== */
-    .user-main { 
-      flex: 1; display: flex; flex-direction: column; background: #f1f5f9; position: relative; 
+    .user-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #f1f5f9;
+      position: relative;
       /* フッターが重ならないように下部に余白を持たせる */
     }
-    
-    .cart-list { 
-      flex: 1; overflow-y: auto; padding: 20px 16px; 
+
+    .cart-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 16px;
       /* 下部ドックの高さ(約120px) + セーフエリア分の余白 */
       padding-bottom: calc(140px + var(--safe-bottom));
-      display: flex; flex-direction: column; gap: 16px; 
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
       -webkit-overflow-scrolling: touch;
     }
-    .cart-empty { 
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      height: 60%; color: var(--sub-text); gap: 2rem; text-align: center; padding: 2rem;
+
+    .cart-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 60%;
+      color: var(--sub-text);
+      gap: 2rem;
+      text-align: center;
+      padding: 2rem;
     }
-    .cart-empty::before { content: "📸"; font-size: 5rem; opacity: 0.7; }
-    .cart-empty::after { 
-      content: "レシートを撮影して\A経費申請を始めましょう"; 
-      white-space: pre-line; font-size: 1.6rem; font-weight: 600; 
-      line-height: 1.6; color: #64748b;
+
+    .cart-empty::before {
+      content: "📸";
+      font-size: 5rem;
+      opacity: 0.7;
+    }
+
+    .cart-empty::after {
+      content: "レシートを撮影して\A経費申請を始めましょう";
+      white-space: pre-line;
+      font-size: 1.6rem;
+      font-weight: 600;
+      line-height: 1.6;
+      color: #64748b;
     }
 
     /* カードデザイン */
     .cart-item {
-      background: white; border-radius: 20px; padding: 20px; 
-      display: flex; flex-direction: column; gap: 16px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04); 
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
       transition: transform 0.1s, box-shadow 0.2s;
-      border: 1px solid rgba(0,0,0,0.04);
+      border: 1px solid rgba(0, 0, 0, 0.04);
     }
-    .cart-item:active { 
-      transform: scale(0.98); 
-      box-shadow: 0 4px 20px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06); 
+
+    .cart-item:active {
+      transform: scale(0.98);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
     }
-    
+
     .cart-item-header {
-      display: flex; align-items: flex-start; gap: 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
     }
-    
+
     .cart-item-content {
-      flex: 1; display: flex; flex-direction: column; gap: 8px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
     }
-    
+
     .cart-item-actions {
-      display: flex; justify-content: space-between; align-items: center;
-      padding-top: 12px; border-top: 1px solid #f1f5f9;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 12px;
+      border-top: 1px solid #f1f5f9;
     }
-    
-    .cart-thumb-box { 
-      width: 80px; height: 80px; border-radius: 16px; overflow: hidden; background: #f1f5f9; position: relative;
-      flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+    .cart-thumb-box {
+      width: 80px;
+      height: 80px;
+      border-radius: 16px;
+      overflow: hidden;
+      background: #f1f5f9;
+      position: relative;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-    .cart-thumb { width: 100%; height: 100%; object-fit: cover; }
-    
-    .cart-info { overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
-    .cart-meta { display: flex; align-items: center; gap: 8px; font-size: 1rem; color: var(--sub-text); margin-bottom: 4px; }
-    .status-badge { 
-      padding: 8px 14px; border-radius: 12px; background: linear-gradient(135deg, #e0f2fe, #bae6fd); 
-      color: var(--primary); font-weight: 700; white-space: nowrap; font-size: 1rem;
+
+    .cart-thumb {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .cart-info {
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cart-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1rem;
+      color: var(--sub-text);
+      margin-bottom: 4px;
+    }
+
+    .status-badge {
+      padding: 8px 14px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+      color: var(--primary);
+      font-weight: 700;
+      white-space: nowrap;
+      font-size: 1rem;
       box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
     }
-    .cart-vendor { 
-      font-weight: 700; font-size: 1.3rem; color: #1e293b;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+
+    .cart-vendor {
+      font-weight: 700;
+      font-size: 1.3rem;
+      color: #1e293b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       line-height: 1.3;
     }
-    
-    .cart-amount { 
-      font-size: 1.8rem; font-weight: 900; color: #059669;
-      text-align: right; letter-spacing: -0.02em;
-    }
-    .cart-amount.zero { color: #cbd5e1; font-size: 1.5rem; }
-    
-    .cart-del-btn {
-      padding: 14px 18px; background: #fef2f2; color: #dc2626; border: none;
-      border-radius: 12px; font-weight: 600; font-size: 1.1rem; cursor: pointer;
-      display: flex; align-items: center; gap: 8px; transition: all 0.2s;
-      min-height: 52px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .cart-del-btn:active { background: #fee2e2; transform: scale(0.95); }
 
-    .analyzing-overlay { 
-      position: absolute; inset: 0; background: rgba(255,255,255,0.8); 
-      display: flex; justify-content: center; align-items: center; 
+    .cart-amount {
+      font-size: 1.8rem;
+      font-weight: 900;
+      color: #059669;
+      text-align: right;
+      letter-spacing: -0.02em;
     }
-    .mini-spinner { width: 20px; height: 20px; border: 3px solid #ddd; border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+
+    .cart-amount.zero {
+      color: #cbd5e1;
+      font-size: 1.5rem;
+    }
+
+    .cart-del-btn {
+      padding: 14px 18px;
+      background: #fef2f2;
+      color: #dc2626;
+      border: none;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1.1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      min-height: 52px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .cart-del-btn:active {
+      background: #fee2e2;
+      transform: scale(0.95);
+    }
+
+    .analyzing-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .mini-spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid #ddd;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
 
     /* ========== ユーザー画面：下部操作ドック ========== */
     .operation-dock {
-      position: absolute; bottom: 0; left: 0; right: 0;
-      background: linear-gradient(to top, rgba(255,255,255,0.98), rgba(255,255,255,0.95));
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.95));
       backdrop-filter: blur(20px);
       padding: 20px 24px;
-      padding-bottom: calc(24px + var(--safe-bottom)); 
-      border-top-left-radius: 24px; border-top-right-radius: 24px;
-      box-shadow: 0 -8px 32px rgba(0,0,0,0.12), 0 -2px 8px rgba(0,0,0,0.04);
-      display: flex; flex-direction: column; gap: 16px;
-      z-index: 50; border-top: 1px solid rgba(0,0,0,0.06);
-    }
-    
-    .dock-top {
-      display: flex; justify-content: space-between; align-items: center;
-    }
-    
-    .dock-bottom {
-      display: flex; gap: 16px; align-items: center;
+      padding-bottom: calc(24px + var(--safe-bottom));
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.12), 0 -2px 8px rgba(0, 0, 0, 0.04);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      z-index: 50;
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
     }
 
-    .total-block { display: flex; flex-direction: column; gap: 4px; }
-    .total-label { font-size: 1.1rem; color: var(--sub-text); font-weight: 600; letter-spacing: 0.02em; }
-    .total-price { 
-      font-size: 2.2rem; font-weight: 900; line-height: 1.1; color: #059669;
+    .dock-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .dock-bottom {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .total-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .total-label {
+      font-size: 1.1rem;
+      color: var(--sub-text);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .total-price {
+      font-size: 2.2rem;
+      font-weight: 900;
+      line-height: 1.1;
+      color: #059669;
       letter-spacing: -0.02em;
     }
 
     .camera-launch-btn {
-      width: 140px; height: 56px; border-radius: 28px; 
-      background: linear-gradient(135deg, #3b82f6, #1d4ed8); 
-      color: white; font-size: 1.8rem; font-weight: 600;
-      display: flex; justify-content: center; align-items: center; gap: 8px;
+      width: 140px;
+      height: 56px;
+      border-radius: 28px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+      font-size: 1.8rem;
+      font-weight: 600;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
       box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4), 0 4px 12px rgba(59, 130, 246, 0.2);
-      cursor: pointer; transition: all 0.2s; border: 3px solid rgba(255,255,255,0.9);
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 3px solid rgba(255, 255, 255, 0.9);
       flex-shrink: 0;
     }
-    .camera-launch-btn:active { transform: scale(0.95); box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5); }
+
+    .camera-launch-btn:active {
+      transform: scale(0.95);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
+    }
 
     .apply-btn {
-      flex: 1; height: 60px;
-      background: linear-gradient(135deg, #059669, #047857); color: white; border: none; border-radius: 16px;
-      font-weight: 700; font-size: 1.3rem; cursor: pointer;
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      flex: 1;
+      height: 60px;
+      background: linear-gradient(135deg, #059669, #047857);
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-weight: 700;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3), 0 2px 4px rgba(5, 150, 105, 0.2);
       transition: all 0.2s;
     }
-    .apply-btn:disabled { 
-      background: #e2e8f0; color: #94a3b8; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+
+    .apply-btn:disabled {
+      background: #e2e8f0;
+      color: #94a3b8;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
-    .apply-btn:not(:disabled):active { 
-      background: linear-gradient(135deg, #047857, #065f46); transform: scale(0.98);
+
+    .apply-btn:not(:disabled):active {
+      background: linear-gradient(135deg, #047857, #065f46);
+      transform: scale(0.98);
     }
 
     /* ========== 管理者画面（修正箇所） ========== */
-    .admin-main { 
-      flex: 1; 
-      display: flex; 
-      flex-direction: column; 
-      background: #334155; 
-      overflow: hidden; /* コンテナ自体はスクロールさせない */
+    .admin-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: #334155;
+      overflow: hidden;
+      /* コンテナ自体はスクロールさせない */
       position: relative;
     }
-    .admin-tools { 
-      flex: 0 0 auto; 
-      padding: 20px 24px; 
-      background: linear-gradient(135deg, #1e293b, #0f172a); 
-      display: flex; 
+
+    .admin-tools {
+      flex: 0 0 auto;
+      padding: 20px 24px;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid rgba(148, 163, 184, 0.2);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
-    .tool-btn { 
-      font-size: 1rem; background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; 
-      border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer;
-      font-weight: 600; transition: all 0.2s; min-height: 44px;
+
+    .tool-btn {
+      font-size: 1rem;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      min-height: 44px;
       box-shadow: 0 3px 10px rgba(59, 130, 246, 0.3);
     }
-    .tool-btn:active { transform: scale(0.95); background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+
+    .tool-btn:active {
+      transform: scale(0.95);
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    }
 
     .card-container {
-      flex: 1; /* 残りの高さを全て使う */
+      /* flex: 1; */
       width: 100%;
-      overflow-x: auto; 
-      overflow-y: hidden; /* 縦スクロール禁止 */
-      display: flex; 
-      align-items: center; /* カードを縦方向中央寄せ */
-      padding: 24px 16px 16px 16px; /* 上部に重複警告バッジ用スペース */
-      gap: 16px;
-      scroll-snap-type: x mandatory; 
-      -webkit-overflow-scrolling: touch;
-      
-      /* 下部が見切れないように、セーフエリア分のパディングを追加 */
-      padding-bottom: calc(16px + var(--safe-bottom));
-      box-sizing: border-box; 
-    }
-    
-    .admin-card {
-      flex: 0 0 90vw; /* 幅は画面の90% */
-      max-width: 500px;
-      /* 高さを100%に指定して親コンテナいっぱいまで広げる */
-      height: 100%;
-      max-height: 100%;
-      scroll-snap-align: center;
-      background: white; border-radius: 16px;
-      display: flex; flex-direction: column;
-      box-sizing: border-box;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-      position: relative; overflow: hidden;
+      /* overflow-y: auto; */
+      /* overflow-x: hidden; */
+      overflow: visible;
+      padding: 24px;
+      /* フッター分確保 */
+      display: grid;
+      /* PC: 2カラム固定 */
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      align-content: start;
     }
 
-    .ac-header { 
-      flex: 0 0 auto; padding: 20px; background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-bottom: 1px solid var(--border); 
-      display: flex; justify-content: space-between; align-items: flex-start; 
+    /* モバイル・タブレットは1カラム */
+    @media (max-width: 900px) {
+      .card-container {
+        grid-template-columns: 1fr;
+      }
     }
-    .ac-user { font-size: 1.1rem; font-weight: 900; line-height: 1.3; }
-    .ac-total { font-size: 1.5rem; font-weight: 900; color: var(--primary); }
-    .ac-dept { font-size: 0.75rem; background: linear-gradient(135deg, #e0e7ff, #c7d2fe); padding: 4px 8px; border-radius: 6px; color: #3730a3; display: inline-block; margin-left: 6px; font-weight: 600;}
-    
+
+
+    .admin-card {
+      width: 100%;
+      /* Gridにお任せ */
+      max-width: none;
+      height: auto;
+      /* コンテンツに合わせて高さ自動 */
+      min-height: auto;
+      scroll-snap-align: start;
+      background: white;
+
+      border-radius: 16px;
+      /* スタイリッシュな影 */
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+        0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      transition: transform 0.2s;
+    }
+
+
+
+    .ac-header {
+      flex: 0 0 auto;
+      padding: 20px;
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .ac-user {
+      font-size: 1.1rem;
+      font-weight: 900;
+      line-height: 1.3;
+    }
+
+    .ac-total {
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--primary);
+    }
+
+    .ac-dept {
+      font-size: 0.75rem;
+      background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+      padding: 4px 8px;
+      border-radius: 6px;
+      color: #3730a3;
+      display: inline-block;
+      margin-left: 6px;
+      font-weight: 600;
+    }
+
     .ac-body {
-      flex: 1; /* カード内で余った部分を埋める */
-      overflow-y: auto; /* ここだけスクロールさせる */
-      overflow-x: hidden; /* 横スクロールを防ぐ */
+      /* flex: 1; */
+      /* overflow-y: auto; */
+      /* overflow-x: hidden; */
+      overflow: visible;
+      /* スクロールさせず高さを伸ばす */
       padding: 16px;
-      overscroll-behavior: contain;
     }
 
     .detail-item {
-      display: flex; flex-direction: column; gap: 8px;
-      margin-bottom: 20px; border-bottom: 1px dashed #e2e8f0; padding-bottom: 16px;
-      width: 100%; box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+      border-bottom: 1px dashed #e2e8f0;
+      padding-bottom: 16px;
+
+      /* 2カラムレイアウト用 (厳密) -> 視認性重視で1カラムに戻すが、カード自体の2列配置は維持 */
+      width: 100%;
+      /* 幅が確保できなくても2列にするため min-width を下げる */
+      min-width: 0;
+      /* flex: 0 0 calc(50% - 6px); */
+      flex: 1;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: 1px solid #f1f5f9;
+      padding: 12px;
+      /* padding: 8px; */
+      background: #f8fafc;
+      /* 高さ揃え */
+      height: 100%;
     }
-    .d-row { display: flex; gap: 12px; width: 100%; box-sizing: border-box; }
-    .d-thumb-box { 
-      width: 70px; height: 70px; background: #000; border-radius: 8px; 
-      overflow: hidden; flex-shrink: 0; position: relative; 
+
+    .input-group-compact {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .d-inputs { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-    
-    input, select, textarea {
-      width: 100%; padding: 18px; border: 1px solid rgba(226, 232, 240, 0.6); border-radius: 12px;
-      font-size: 18px; background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(248,250,252,0.8));
-      backdrop-filter: blur(8px); transition: all 0.2s; min-height: 52px; box-sizing: border-box;
+
+    .input-group-compact label {
+      flex: 0 0 70px;
+      /* ラベル幅固定 */
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .d-row {
+      display: flex;
+      gap: 12px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .d-thumb-box {
+      width: 120px;
+      /* PC: 横幅固定 */
+      height: auto;
+      min-height: 160px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      flex-shrink: 0;
+      align-self: stretch;
+      /* 高さいっぱいに */
+    }
+
+    .d-inputs {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      /* 間隔調整 */
+      min-width: 0;
+    }
+
+    /* 2列またぎ用クラス */
+    .span-full {
+      grid-column: 1 / -1;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      padding: 6px 8px;
+      /* パディング縮小 */
+      border: 1px solid rgba(226, 232, 240, 0.6);
+      border-radius: 6px;
+      /* 半径も少し小さく */
+      font-size: 0.85rem;
+      /* 文字サイズ縮小 */
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8));
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+      min-height: 32px;
+      /* 高さ縮小 */
+      box-sizing: border-box;
       color: var(--text);
     }
-    textarea { font-family: inherit; }
-    input:focus, select:focus {
-      outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-      background: rgba(255,255,255,0.95);
+
+    textarea {
+      font-family: inherit;
     }
+
+    input:focus,
+    select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background: rgba(255, 255, 255, 0.95);
+    }
+
     select option {
       background: white;
       color: var(--text);
     }
 
-    .ac-footer { 
-      flex: 0 0 auto; /* 高さを固定 */
-      padding: 20px; 
-      border-top: 1px solid var(--border); display: flex; gap: 12px; background: linear-gradient(135deg, #fefefe, #f9fafb); 
+    .ac-footer {
+      flex: 0 0 auto;
+      /* 高さを固定 */
+      padding: 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 12px;
+      background: linear-gradient(135deg, #fefefe, #f9fafb);
       /* カード自体が浮いているため、ここでのsafe-bottomは不要 */
     }
-    .btn-ap { 
-      flex: 2; padding: 16px 20px; background: linear-gradient(135deg, #059669, #047857); 
-      color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 1.1rem; 
-      cursor: pointer; transition: all 0.2s; min-height: 50px;
+
+    .btn-ap {
+      flex: 2;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #059669, #047857);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 42px;
       box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    .btn-ap:active { transform: scale(0.98); background: linear-gradient(135deg, #047857, #065f46); }
-    .btn-ap::before { content: '✓'; font-size: 1.2rem; }
-    
+
+    .btn-ap:active {
+      transform: scale(0.98);
+      background: linear-gradient(135deg, #047857, #065f46);
+    }
+
+    .btn-ap::before {
+      content: '✓';
+      font-size: 1.2rem;
+    }
+
     .btn-rj {
-      flex: 1; padding: 16px 20px; background: linear-gradient(135deg, #fef2f2, #fee2e2);
-      color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 12px;
-      font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: all 0.2s; min-height: 50px;
+      flex: 1;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #fef2f2, #fee2e2);
+      color: #dc2626;
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 42px;
       box-shadow: 0 3px 12px rgba(239, 68, 68, 0.2);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    .btn-rj:active { transform: scale(0.98); background: linear-gradient(135deg, #fee2e2, #fecaca); }
-    .btn-rj::before { content: '×'; font-size: 1.3rem; }
+
+    .btn-rj:active {
+      transform: scale(0.98);
+      background: linear-gradient(135deg, #fee2e2, #fecaca);
+    }
+
+    .btn-rj::before {
+      content: '×';
+      font-size: 1.3rem;
+    }
 
     .btn-rt {
-      flex: 1.5; padding: 16px 20px; background: linear-gradient(135deg, #f59e0b, #ea580c);
-      color: white; border: none; border-radius: 12px;
-      font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: all 0.2s; min-height: 50px;
+      flex: 1.5;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #f59e0b, #ea580c);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 42px;
       box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
-    .btn-rt:active { transform: scale(0.98); background: linear-gradient(135deg, #ea580c, #dc2626); }
-    .btn-rt::before { content: '↩'; font-size: 1.2rem; }
+
+    .btn-rt:active {
+      transform: scale(0.98);
+      background: linear-gradient(135deg, #ea580c, #dc2626);
+    }
+
+    .btn-rt::before {
+      content: '↩';
+      font-size: 1.2rem;
+    }
 
     /* ========== その他（モーダル等） ========== */
-    .edit-modal { 
-      position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; 
-      display: none; justify-content: center; align-items: flex-end; 
+    /* 新しいメニューリストスタイル */
+    .menu-list-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      padding: 16px;
+      border: none;
+      background: white;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.2s;
+    }
+
+    .menu-list-item:last-child {
+      border-bottom: none;
+    }
+
+    .menu-list-item:active {
+      background: #f8fafc;
+    }
+
+    .ml-icon {
+      font-size: 1.2rem;
+      margin-right: 12px;
+      width: 24px;
+      text-align: center;
+    }
+
+    .ml-text {
+      flex: 1;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .ml-arrow {
+      color: #cbd5e1;
+      font-weight: bold;
+    }
+
+    .edit-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 100;
+      display: none;
+      justify-content: center;
+      align-items: flex-end;
       backdrop-filter: blur(8px);
     }
-    .edit-sheet { 
-      width: 100%; max-width: 600px; 
-      background: linear-gradient(to bottom, rgba(255,255,255,0.98), rgba(248,250,252,0.95));
-      backdrop-filter: blur(20px); border-radius: 24px 24px 0 0; 
-      padding: 24px; padding-bottom: calc(24px + var(--safe-bottom));
-      display: flex; flex-direction: column; gap: 20px; 
+
+    .edit-sheet {
+      width: 100%;
+      max-width: 600px;
+      background: linear-gradient(to bottom, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+      backdrop-filter: blur(20px);
+      border-radius: 24px 24px 0 0;
+      padding: 24px;
+      padding-bottom: calc(24px + var(--safe-bottom));
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
       animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-      max-height: 85vh; overflow-y: auto; border: 1px solid rgba(226, 232, 240, 0.3);
+      max-height: 85vh;
+      overflow-y: auto;
+      border: 1px solid rgba(226, 232, 240, 0.3);
     }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    
-    .sheet-handle { width: 40px; height: 5px; background: #cbd5e1; border-radius: 3px; margin: 0 auto 10px auto; }
-    
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(100%);
+      }
+
+      to {
+        transform: translateY(0);
+      }
+    }
+
+    .sheet-handle {
+      width: 40px;
+      height: 5px;
+      background: #cbd5e1;
+      border-radius: 3px;
+      margin: 0 auto 10px auto;
+    }
+
     .edit-img-box {
-      width: 100%; height: 200px; background: linear-gradient(135deg, #f8fafc, #f1f5f9); 
-      border-radius: 16px; display: flex; justify-content: center; align-items: center; overflow: hidden;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.5);
-    }
-    .edit-img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    
-    .input-group label { 
-      display: block; font-size: 1.1rem; color: #374151; margin-bottom: 10px; 
-      font-weight: 600; letter-spacing: 0.01em;
-    }
-    .btn-save { 
-      padding: 20px; background: linear-gradient(135deg, #059669, #047857); color: white; 
-      border: none; border-radius: 16px; font-weight: 700; font-size: 1.4rem; 
-      margin-top: 16px; cursor: pointer; box-shadow: 0 6px 20px rgba(5, 150, 105, 0.3);
-      transition: all 0.2s; min-height: 60px;
-    }
-    .btn-save:active { transform: scale(0.98); background: linear-gradient(135deg, #047857, #065f46); }
-
-    .master-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 110; display: none; justify-content: center; align-items: center; }
-    .master-box { width: 90%; max-width: 350px; background: white; border-radius: 16px; padding: 20px; max-height: 70vh; display: flex; flex-direction: column; }
-    .master-list { flex: 1; overflow-y: auto; margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; }
-    .master-item { padding: 10px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
-
-    .help-modal { 
-      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 120; 
-      display: none; justify-content: center; align-items: center; backdrop-filter: blur(8px);
-    }
-    .help-content { 
-      width: 95%; max-width: 500px; max-height: 85vh; background: white; border-radius: 20px; 
-      overflow: hidden; display: flex; flex-direction: column;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-    }
-    .help-header { 
-      padding: 24px 24px 16px; background: linear-gradient(135deg, #06b6d4, #0891b2); 
-      color: white; text-align: center;
-    }
-    .help-header h2 { margin: 0; font-size: 1.5rem; font-weight: 700; }
-    .help-body { 
-      flex: 1; overflow-y: auto; padding: 0; -webkit-overflow-scrolling: touch;
-    }
-    .help-section { 
-      padding: 20px 24px; border-bottom: 1px solid #f1f5f9;
-    }
-    .help-section:last-child { border-bottom: none; }
-    .help-section h3 { 
-      margin: 0 0 12px; font-size: 1.2rem; color: #0f172a; display: flex; align-items: center; gap: 8px;
-    }
-    .help-section p { 
-      margin: 0 0 8px; line-height: 1.6; color: #475569; font-size: 1rem;
-    }
-    .help-section ul { 
-      margin: 8px 0; padding-left: 20px; color: #475569; font-size: 1rem;
-    }
-    .help-section li { margin: 4px 0; }
-    .help-footer { 
-      padding: 16px 24px; background: #f8fafc; border-top: 1px solid #e2e8f0; text-align: center;
+      width: 100%;
+      height: 200px;
+      background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+      border-radius: 16px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
-    #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 200; display: none; justify-content: center; align-items: center; flex-direction: column; }
-    .spinner { width: 40px; height: 40px; border: 4px solid #ddd; border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    
-    #toast { 
-      position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(20px); 
-      background: #1e293b; color: white; padding: 10px 20px; border-radius: 50px; 
-      opacity: 0; transition: 0.3s; pointer-events: none; z-index: 300; 
-      font-weight: bold; font-size: 0.9rem; box-shadow: var(--shadow-lg); 
+    .edit-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
     }
-    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    .confirm-toast { 
-      position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); 
-      background: white; color: #1e293b; padding: 20px; border-radius: 20px; 
-      box-shadow: 0 10px 40px rgba(0,0,0,0.4); z-index: 350; width: 90%; max-width: 340px; 
-      display: none; flex-direction: column; gap: 16px; animation: popUp 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+    .input-group label {
+      display: block;
+      font-size: 1.1rem;
+      color: #374151;
+      margin-bottom: 10px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
     }
-    @keyframes popUp { from { transform: translateX(-50%) scale(0.8); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
-    .confirm-actions { display: flex; gap: 10px; }
-    .c-btn { 
-      flex: 1; padding: 18px; border: none; border-radius: 12px; font-weight: 700; 
-      font-size: 1.2rem; cursor: pointer; transition: all 0.2s; min-height: 52px;
+
+    .btn-save {
+      padding: 20px;
+      background: linear-gradient(135deg, #059669, #047857);
+      color: white;
+      border: none;
+      border-radius: 16px;
+      font-weight: 700;
+      font-size: 1.4rem;
+      margin-top: 16px;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(5, 150, 105, 0.3);
+      transition: all 0.2s;
+      min-height: 60px;
     }
-    .c-yes { 
-      background: linear-gradient(135deg, #3b82f6, #2563eb); color: white;
+
+    .btn-save:active {
+      transform: scale(0.98);
+      background: linear-gradient(135deg, #047857, #065f46);
+    }
+
+    .master-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 110;
+      display: none;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .master-box {
+      width: 90%;
+      max-width: 350px;
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .master-list {
+      flex: 1;
+      overflow-y: auto;
+      margin: 16px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .master-item {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .help-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 120;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(8px);
+    }
+
+    .help-content {
+      width: 95%;
+      max-width: 500px;
+      max-height: 85vh;
+      background: white;
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    }
+
+    .help-header {
+      padding: 24px 24px 16px;
+      background: linear-gradient(135deg, #06b6d4, #0891b2);
+      color: white;
+      text-align: center;
+    }
+
+    .help-header h2 {
+      margin: 0;
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .help-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .help-section {
+      padding: 20px 24px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .help-section:last-child {
+      border-bottom: none;
+    }
+
+    .help-section h3 {
+      margin: 0 0 12px;
+      font-size: 1.2rem;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .help-section p {
+      margin: 0 0 8px;
+      line-height: 1.6;
+      color: #475569;
+      font-size: 1rem;
+    }
+
+    .help-section ul {
+      margin: 8px 0;
+      padding-left: 20px;
+      color: #475569;
+      font-size: 1rem;
+    }
+
+    .help-section li {
+      margin: 4px 0;
+    }
+
+    .help-footer {
+      padding: 16px 24px;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      text-align: center;
+    }
+
+    #loadingOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.9);
+      z-index: 200;
+      display: none;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #ddd;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: #1e293b;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 50px;
+      opacity: 0;
+      transition: 0.3s;
+      pointer-events: none;
+      z-index: 300;
+      font-weight: bold;
+      font-size: 0.9rem;
+      box-shadow: var(--shadow-lg);
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .confirm-toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: white;
+      color: #1e293b;
+      padding: 20px;
+      border-radius: 20px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+      z-index: 350;
+      width: 90%;
+      max-width: 340px;
+      display: none;
+      flex-direction: column;
+      gap: 16px;
+      animation: popUp 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popUp {
+      from {
+        transform: translateX(-50%) scale(0.8);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(-50%) scale(1);
+        opacity: 1;
+      }
+    }
+
+    .confirm-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .c-btn {
+      flex: 1;
+      padding: 18px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1.2rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 52px;
+    }
+
+    .c-yes {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: white;
       box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
     }
-    .c-yes:active { background: linear-gradient(135deg, #2563eb, #1d4ed8); transform: scale(0.98); }
-    
-    .c-no { 
-      background: linear-gradient(135deg, #f1f5f9, #e2e8f0); color: #475569;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    .c-no:active { background: linear-gradient(135deg, #e2e8f0, #cbd5e1); transform: scale(0.98); }
 
-    #imageModal { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; z-index: 999; justify-content: center; align-items: center; }
-    #zoomImg { max-width: 100%; max-height: 100%; object-fit: contain; }
-    
+    .c-yes:active {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      transform: scale(0.98);
+    }
+
+    .c-no {
+      background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+      color: #475569;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .c-no:active {
+      background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+      transform: scale(0.98);
+    }
+
+    #imageModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.95);
+      display: none;
+      z-index: 999;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #zoomImg {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
     /* ========== 重複警告スタイル ========== */
     .duplicate-warning {
       background: linear-gradient(135deg, #fef2f2, #fee2e2) !important;
@@ -495,6 +1224,7 @@
       box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3) !important;
       position: relative;
     }
+
     .duplicate-warning::before {
       content: "⚠️ 重複の可能性";
       position: absolute;
@@ -512,401 +1242,1201 @@
       z-index: 10;
       white-space: nowrap;
     }
+
     @keyframes pulseWarning {
-      0%, 100% { transform: scale(1); opacity: 1; }
-      50% { transform: scale(1.05); opacity: 0.8; }
+
+      0%,
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+
+      50% {
+        transform: scale(1.05);
+        opacity: 0.8;
+      }
     }
-    
-    .hidden { display: none; }
+
+    .hidden {
+      display: none;
+    }
+
+    /* ========== フッターナビゲーション ========== */
+    .app-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: calc(60px + var(--safe-bottom));
+      background: rgba(255, 255, 255, 0.98);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      display: flex;
+      justify-content: space-around;
+      padding-bottom: var(--safe-bottom);
+      z-index: 900;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+    }
+
+    .nav-btn {
+      flex: 1;
+      background: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .nav-btn.active {
+      color: var(--primary);
+    }
+
+    .nav-icon {
+      font-size: 1.5rem;
+      transition: transform 0.2s;
+    }
+
+    .nav-btn.active .nav-icon {
+      transform: scale(1.1);
+    }
+
+    .nav-text {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    /* ユーザー画面の調整 (フッター分空ける) */
+    .cart-list {
+      padding-bottom: calc(180px + var(--safe-bottom));
+    }
+
+    /* Dock + Nav */
+    .operation-dock {
+      bottom: calc(60px + var(--safe-bottom));
+      /* Navの上に配置 */
+      border-radius: 24px;
+    }
+
+    /* ========== メニュー画面 ========== */
+    .menu-card {
+      background: white;
+      border: none;
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      transition: all 0.2s;
+      cursor: pointer;
+      aspect-ratio: 1/1;
+    }
+
+    .menu-card:active {
+      transform: scale(0.96);
+      background: #f8fafc;
+    }
+
+    .mc-icon {
+      font-size: 1.8rem;
+    }
+
+    .mc-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #334155;
+      word-break: break-all;
+      line-height: 1.2;
+      text-align: center;
+    }
+
+    .menu-card:active {
+      transform: scale(0.96);
+      background: #f8fafc;
+    }
+
+    .mc-icon {
+      font-size: 2.5rem;
+    }
+
+    .mc-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .menu-item {
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #f1f5f9;
+      cursor: pointer;
+      color: #334155;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .menu-item:last-child {
+      border-bottom: none;
+    }
+
+    .menu-item:active {
+      background: #f8fafc;
+    }
+
+    /* ========== レポート画面 (共通) ========== */
+    .score-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .score-card {
+      padding: 16px;
+      border-radius: 16px;
+      color: white;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .sc-blue {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+    }
+
+    .sc-red {
+      background: linear-gradient(135deg, #ef4444, #dc2626);
+    }
+
+    .sc-green {
+      background: linear-gradient(135deg, #10b981, #059669);
+    }
+
+    .sc-orange {
+      background: linear-gradient(135deg, #f59e0b, #d97706);
+    }
+
+    .sc-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+
+    .sc-val {
+      font-size: 1.4rem;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+    }
+
+    .report-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .report-table th,
+    .report-table td {
+      padding: 12px;
+      text-align: right;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    .report-table th {
+      text-align: center;
+      background: #f8fafc;
+      color: #64748b;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .report-table th:first-child,
+    .report-table td:first-child {
+      text-align: left;
+      position: sticky;
+      left: 0;
+      background: white;
+      z-index: 11;
+      font-weight: bold;
+      border-right: 1px solid #f1f5f9;
+      box-shadow: 2px 0 4px rgba(0, 0, 0, 0.02);
+    }
+
+    .report-table th:first-child {
+      z-index: 12;
+      background: #f8fafc;
+    }
+
+    /* 履歴リスト */
+    .history-item {
+      background: white;
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+    }
+
+    .h-stat {
+      font-size: 0.8rem;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: bold;
+    }
+
+    .st-apply {
+      background: #e0f2fe;
+      color: #0284c7;
+    }
+
+    .st-ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .st-ng {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .st-ret {
+      background: #ffedd5;
+      color: #9a3412;
+    }
   </style>
 </head>
+
 <body>
 
-<div class="app-root">
-  <header>
-    <h1>経費精算</h1>
-    <select id="applicantSelector"><option>読込中...</option></select>
-    <button id="helpBtn" class="help-btn" onclick="showHelp()">❓</button>
-    <button id="adminBtn" class="admin-switch-btn" onclick="toggleMode()">管理者</button>
-  </header>
-
-  <div id="userView" class="view-section active">
-    <div class="user-main">
-      <div id="cartList" class="cart-list">
-        <div class="cart-empty">レシートを撮影してください</div>
-      </div>
-      
-      <div class="operation-dock">
-        <div class="dock-top">
-          <div class="total-block">
-            <div class="total-label">申請合計</div>
-            <div class="total-price">¥<span id="totalDisplay">0</span></div>
-          </div>
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
-            <div class="camera-launch-btn" onclick="openCamera()">
-              <span>📷</span><span>撮影</span>
-            </div>
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: #64748b; cursor: pointer; user-select: none;">
-              <input type="checkbox" id="continueMode" style="width: 18px; height: 18px; cursor: pointer;">
-              <span>前の明細の続き</span>
-            </label>
-          </div>
-        </div>
-        <div class="dock-bottom">
-          <button id="submitBtn" class="apply-btn" onclick="submitCart()" disabled>
-            <span>💸</span> まとめて申請
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <form id="ocrForm" style="display:none;"><input type="file" id="rFile" name="receiptFile" accept="image/*" capture="environment" onchange="handleFile(this)"></form>
-
-  <div id="editModal" class="edit-modal" onclick="if(event.target===this) closeEdit()">
-    <div class="edit-sheet">
-      <div class="sheet-handle"></div>
-      <div class="edit-img-box">
-        <img id="eImg" class="edit-img">
-      </div>
-      <div class="input-group">
-        <label>利用日</label>
-        <input type="date" id="eDate" style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-      </div>
-      <div class="input-group">
-        <label>金額 (税込)</label>
-        <input type="number" id="eAmt" placeholder="0">
-      </div>
-      <div class="input-group">
-        <label>税率</label>
-        <select id="eTax" style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
-          <option value="10">10%</option>
-          <option value="8">8%</option>
+  <div class="app-root">
+    <div id="userView" class="view-section active">
+      <!-- 既存のユーザー画面 -->
+      <header>
+        <h1>経費精算</h1>
+        <select id="applicantSelector">
+          <option>読込中...</option>
         </select>
-      </div>
-      <div class="input-group">
-        <label>店名</label>
-        <input type="text" id="eVen" placeholder="店名">
-      </div>
-      <div class="input-group">
-        <label>科目</label>
-        <input type="text" id="eSub" placeholder="消耗品費など" onchange="updateTaxRateBySubject()">
-      </div>
-      <div class="input-group">
-        <label>備考・利用目的</label>
-        <textarea id="ePurpose" placeholder="会議費、接待など詳細を入力" style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; resize: vertical; min-height: 60px;"></textarea>
-      </div>
-      <button class="btn-save" onclick="saveEdit()">決定</button>
-    </div>
-  </div>
+        <button id="helpBtn" class="help-btn" onclick="showHelp()">❓</button>
+      </header>
+      <div class="user-main">
+        <div id="cartList" class="cart-list">
+          <div class="cart-empty">レシートを撮影してください</div>
+        </div>
 
-  <div id="adminView" class="view-section">
-    <div class="admin-tools">
-      <div style="display: flex; align-items: center; gap: 16px; flex: 1;">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="color: white; font-weight: 600; font-size: 0.9rem; opacity: 0.9;">フィルター:</span>
-          <select id="applicantFilter" style="
-            padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(226, 232, 240, 0.3);
-            background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
-            color: var(--text); font-size: 0.95rem; font-weight: 600; min-width: 160px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-          ">
-            <option value="">全ての申請者</option>
+        <div class="operation-dock">
+          <div class="dock-top">
+            <div class="total-block">
+              <div class="total-label">申請合計</div>
+              <div class="total-price">¥<span id="totalDisplay">0</span></div>
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 8px;">
+              <div class="camera-launch-btn" onclick="openCamera()">
+                <span>📷</span><span>撮影</span>
+              </div>
+              <label
+                style="display: flex; align-items: center; gap: 6px; font-size: 0.95rem; color: #64748b; cursor: pointer; user-select: none;">
+                <input type="checkbox" id="continueMode" style="width: 18px; height: 18px; cursor: pointer;">
+                <span>前の明細の続き</span>
+              </label>
+            </div>
+          </div>
+          <div class="dock-bottom">
+            <button id="submitBtn" class="apply-btn" onclick="submitCart()" disabled>
+              <span>💸</span> <span id="submitBtnText"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="historyView" class="view-section">
+      <header>
+        <h1>申請履歴</h1>
+        <div style="flex:1;"></div>
+      </header>
+      <div class="history-list" id="historyListContainer" style="overflow-y:auto; padding:20px; padding-bottom:100px;">
+        <div style="display:flex; justify-content:center; margin-bottom:16px;">
+          <select id="historyMonthPicker"
+            style="padding:8px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1; background:white;"
+            onchange="loadHistory()">
+            <option value="ALL">全期間</option>
           </select>
         </div>
-        <div id="filterTotalDisplay" style="
-          display: none; padding: 10px 16px; border-radius: 8px; 
-          background: linear-gradient(135deg, #dcfdf4, #a7f3d0);
-          color: #059669; font-weight: 700; font-size: 1rem;
-          box-shadow: 0 2px 8px rgba(5, 150, 105, 0.2);
-          border: 1px solid rgba(5, 150, 105, 0.2);
-        ">
-          📊 合計: ¥<span id="filterTotal">0</span>
+        <div id="historyInnerList">
+          <div style="text-align:center; color:#64748b; margin-top:40px;">読み込んでいます...</div>
         </div>
       </div>
-      <button class="tool-btn" onclick="openSubjectMaster()">
-        📁 科目マスタ管理
+    </div>
+
+    <div id="menuView" class="view-section" style="background:#f1f5f9;">
+      <header>
+        <h1>メニュー</h1>
+      </header>
+      <div style="padding:24px; display:flex; flex-direction:column; gap:20px; overflow-y:auto; padding-bottom:100px;">
+
+        <!-- 管理者メニュー -->
+        <div id="adminMenuBlock" style="display:none;">
+          <h3 style="color:#475569; margin-bottom:12px; font-size:0.95rem; font-weight:600;">管理者メニュー</h3>
+          <div style="background:white; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0;">
+            <button class="menu-list-item" onclick="switchView('adminView'); loadAdminData();">
+              <span class="ml-icon">⚡</span>
+              <span class="ml-text">承認・却下</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+            <button class="menu-list-item" onclick="openSubjectMaster()">
+              <span class="ml-icon">📁</span>
+              <span class="ml-text">科目管理</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+            <button class="menu-list-item" onclick="switchView('reportMonthView'); loadMonthlyReport();">
+              <span class="ml-icon">📊</span>
+              <span class="ml-text">月次レポート</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+            <button class="menu-list-item" onclick="switchView('reportDailyView'); loadDailyReport();">
+              <span class="ml-icon">📅</span>
+              <span class="ml-text">日別集計</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+            <button class="menu-list-item" onclick="openDepositModal()">
+              <span class="ml-icon">💰</span>
+              <span class="ml-text">入金・調整登録</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+          </div>
+        </div>
+
+        <h3 style="color:#475569; margin-bottom:12px; font-size:0.95rem; font-weight:600; margin-top:20px;">その他</h3>
+        <div style="background:white; border-radius:12px; overflow:hidden; border:1px solid #e2e8f0;">
+          <div class="menu-item" onclick="showHelp()">
+            <span>❓ 使い方ガイド</span>
+            <span>&gt;</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+
+
+    <!-- 管理者：月次レポート画面 -->
+    <div id="reportMonthView" class="view-section" style="background: #f8fafc; overflow-y: auto;">
+      <header style="position:sticky; top:0;">
+        <button onclick="switchView('menuView')"
+          style="background:none; border:none; color:var(--primary); font-size:1.2rem; font-weight:bold;">&lt;
+          メニュー</button>
+        <h1 style="font-size:1.2rem; margin-left:10px;">月次レポート</h1>
+      </header>
+      <div style="padding:20px; padding-bottom:100px;">
+        <div style="display:flex; justify-content:center; margin-bottom:20px;">
+          <input type="month" id="reportMonthPicker" style="font-size:1.2rem; padding:8px;"
+            onchange="loadMonthlyReport()">
+        </div>
+
+        <!-- スコアカード -->
+        <div class="score-grid">
+          <div class="score-card sc-blue">
+            <div class="sc-label">入金</div>
+            <div class="sc-val" id="repInc">0</div>
+          </div>
+          <div class="score-card sc-red">
+            <div class="sc-label">出金</div>
+            <div class="sc-val" id="repExp">0</div>
+          </div>
+          <div class="score-card sc-green">
+            <div class="sc-label">残高</div>
+            <div class="sc-val" id="repBal">0</div>
+          </div>
+          <div class="score-card sc-orange">
+            <div class="sc-label">今日の残高</div>
+            <div class="sc-val" id="repToday">0</div>
+          </div>
+        </div>
+
+        <!-- グリッド表 -->
+        <div
+          style="overflow-x:auto; margin-top:24px; background:white; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+          <table id="monthlyGrid" class="report-table"></table>
+        </div>
+
+        <!-- インボイス集計 -->
+        <h3 style="margin-top:30px; color:#475569;">インボイス別集計 (支出)</h3>
+        <div style="background:white; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+          <table class="report-table" id="invoiceTable">
+            <thead>
+              <tr>
+                <th>登録</th>
+                <th>税率</th>
+                <th>金額</th>
+              </tr>
+            </thead>
+            <tbody id="invoiceBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者：日別(人別)レポート画面 -->
+    <div id="reportDailyView" class="view-section" style="background: #f8fafc; overflow-y: auto;">
+      <header style="position:sticky; top:0;">
+        <button onclick="switchView('menuView')"
+          style="background:none; border:none; color:var(--primary); font-size:1.2rem; font-weight:bold;">&lt;
+          メニュー</button>
+        <h1 style="font-size:1.2rem; margin-left:10px;">申請者別集計</h1>
+      </header>
+      <div style="padding:20px; padding-bottom:100px;">
+        <div style="display:flex; justify-content:center; margin-bottom:20px;">
+          <input type="month" id="dailyReportMonthPicker" style="font-size:1.2rem; padding:8px;"
+            onchange="loadDailyReport()">
+        </div>
+        <div id="dailyPersonList" style="display:flex; flex-direction:column; gap:12px;"></div>
+      </div>
+    </div>
+
+    <form id="ocrForm" style="display:none;"><input type="file" id="rFile" name="receiptFile" accept="image/*"
+        capture="environment" onchange="handleFile(this)"></form>
+
+    <!-- フッターナビ -->
+    <nav class="app-nav">
+      <button class="nav-btn active" onclick="switchView('userView')" id="navApply">
+        <div class="nav-icon">📝</div>
+        <div class="nav-text">申請</div>
       </button>
-    </div>
-    <main class="admin-main">
-      <div id="cardContainer" class="card-container">
-        <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
-          <div style="font-size:2rem; margin-bottom:16px;">⏳</div>
-          データを読み込んでいます...
-        </div>
-      </div>
-    </main>
-  </div>
+      <button class="nav-btn" onclick="switchView('historyView'); loadHistory();" id="navHistory">
+        <div class="nav-icon">🕒</div>
+        <div class="nav-text">履歴</div>
+      </button>
+      <button class="nav-btn" onclick="switchView('menuView')" id="navMenu">
+        <div class="nav-icon">⚙️</div>
+        <div class="nav-text">メニュー</div>
+      </button>
+    </nav>
 
-  <div id="subjectModal" class="master-modal">
-    <div class="master-box">
-      <h3>科目マスタ</h3>
-      <div style="display:flex; gap:8px;">
-        <input id="newSubject" type="text" placeholder="新しい科目" style="flex:1;">
-        <button onclick="addSubject()" style="padding:0 12px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">追加</button>
-      </div>
-      <div id="subjectListDiv" class="master-list"></div>
-      <button onclick="document.getElementById('subjectModal').style.display='none'" style="padding:12px; background:#f1f5f9; border:none; border-radius:8px; font-weight:bold; color:#475569;">閉じる</button>
-    </div>
-  </div>
-
-  <div id="helpModal" class="help-modal" onclick="if(event.target===this) closeHelp()">
-    <div class="help-content">
-      <div class="help-header">
-        <h2>📱 使い方ガイド</h2>
-      </div>
-      <div class="help-body">
-        <div class="help-section">
-          <h3>🚀 基本の使い方</h3>
-          <p><strong>1. レシート撮影</strong><br>📷撮影ボタンをタップしてレシートを撮影</p>
-          <p><strong>2. 内容確認</strong><br>AIが自動で金額・店名・科目を読み取ります</p>
-          <p><strong>3. 編集（必要に応じて）</strong><br>カードをタップして内容を修正</p>
-          <p><strong>4. 申請送信</strong><br>💸まとめて申請ボタンで送信</p>
+    <!-- モーダル類は変更なし -->
+    <div id="editModal" class="edit-modal" onclick="if(event.target===this) closeEdit()">
+      <div class="edit-sheet">
+        <div class="sheet-handle"></div>
+        <div class="edit-img-box">
+          <img id="eImg" class="edit-img">
         </div>
-        
-        <div class="help-section">
-          <h3>📸 撮影のコツ</h3>
-          <ul>
-            <li>明るい場所で撮影する</li>
-            <li>レシート全体を画面に収める</li>
-            <li>平らな場所に置いて真上から撮影</li>
-            <li>手ぶれしないようにゆっくりと</li>
-          </ul>
+        <div class="input-group">
+          <label>利用日</label>
+          <input type="date" id="eDate"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
         </div>
-
-        <div class="help-section">
-          <h3>📏 長いレシートの撮影</h3>
-          <p><strong>1枚に収まらない長いレシートの場合：</strong></p>
-          <ol>
-            <li>まず上半分を撮影</li>
-            <li>「前の明細の続き」にチェック✓</li>
-            <li>下半分を撮影</li>
-            <li>金額が自動で合算されます</li>
-          </ol>
-          <p style="font-size:0.95rem; color:#64748b; margin-top:8px;">※画像は両方とも保存され、カードに「×2」と表示されます</p>
+        <div class="input-group">
+          <label>金額 (税込)</label>
+          <input type="number" id="eAmt" placeholder="0">
         </div>
-        
-        <div class="help-section">
-          <h3>✏️ 編集機能</h3>
-          <p>レシートカードをタップすると編集画面が開きます：</p>
-          <ul>
-            <li><strong>金額</strong>：読み取りが不正確な場合に修正</li>
-            <li><strong>店名</strong>：正しい店舗名に変更</li>
-            <li><strong>科目</strong>：適切な経費科目を選択</li>
-          </ul>
+        <div class="input-group">
+          <label>税率</label>
+          <select id="eTax" style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <option value="10">10%</option>
+            <option value="8">8%</option>
+          </select>
         </div>
-        
-        <div class="help-section">
-          <h3>🔧 よくある問題</h3>
-          <p><strong>金額が0円になる</strong><br>→ 明るい場所で再撮影するか、手動で入力</p>
-          <p><strong>店名が読めない</strong><br>→ 編集画面で正しい店名を入力</p>
-          <p><strong>科目がわからない</strong><br>→ 管理者に確認してください</p>
+        <div class="input-group">
+          <label>店名</label>
+          <input type="text" id="eVen" placeholder="店名">
         </div>
-        
-        <div class="help-section">
-          <h3>📋 申請前チェック</h3>
-          <ul>
-            <li>✅ 金額が正しく入力されている</li>
-            <li>✅ 店名が正しく入力されている</li>
-            <li>✅ 適切な科目が選択されている</li>
-            <li>✅ レシート画像がはっきり見える</li>
-          </ul>
+        <div class="input-group">
+          <label>科目</label>
+          <input type="text" id="eSub" placeholder="消耗品費など" onchange="updateTaxRateBySubject()">
         </div>
-      </div>
-      <div class="help-footer">
-        <button onclick="closeHelp()" style="padding:12px 24px; background:#06b6d4; color:white; border:none; border-radius:12px; font-weight:bold; font-size:1.1rem;">閉じる</button>
+        <div class="input-group">
+          <label>備考・利用目的</label>
+          <textarea id="ePurpose" placeholder="会議費、接待など詳細を入力"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; resize: vertical; min-height: 60px;"></textarea>
+        </div>
+        <button class="btn-save" onclick="saveEdit()">決定</button>
       </div>
     </div>
+
+    <div id="adminView" class="view-section">
+      <div class="admin-tools">
+        <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+          <div style="position: relative;">
+            <div
+              style="position:absolute; left:12px; top:50%; transform:translateY(-50%); pointer-events:none; font-size:1.1rem;">
+              🔍</div>
+            <select id="applicantFilter" style="
+              padding: 10px 14px 10px 42px; 
+              border-radius: 20px; 
+              border: 1px solid rgba(255, 255, 255, 0.2);
+              background: rgba(255,255,255,0.1); 
+              color: white; 
+              font-size: 0.95rem; 
+              font-weight: 500; 
+              min-width: 180px;
+              appearance: none;
+              cursor: pointer;
+              transition: all 0.2s;
+            " onfocus="this.style.background='rgba(255,255,255,0.2)'"
+              onblur="this.style.background='rgba(255,255,255,0.1)'">
+              <option value="" style="color:#333;">全ての申請者</option>
+            </select>
+          </div>
+
+          <div id="filterTotalDisplay" style="
+            display: none; padding: 6px 14px; border-radius: 20px; 
+            background: rgba(16, 185, 129, 0.2);
+            color: #34d399; font-weight: 600; font-size: 0.9rem;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+          ">
+            計: ¥<span id="filterTotal">0</span>
+          </div>
+        </div>
+        <button class="tool-btn" onclick="openSubjectMaster()">
+          📁 科目マスタ管理
+        </button>
+      </div>
+      <main class="admin-main">
+        <div id="cardContainer" class="card-container">
+          <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
+            <div style="font-size:2rem; margin-bottom:16px;">⏳</div>
+            データを読み込んでいます...
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- 入金登録モーダル -->
+    <div id="depositModal" class="master-modal">
+      <div class="master-box" style="width: 90%; max-width: 400px; padding:24px;">
+        <h3 style="text-align:center; margin-bottom:20px; color:#10b981;">💰 入金・資金移動の登録</h3>
+
+        <div class="input-group">
+          <label>日付</label>
+          <input type="date" id="depDate"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+        </div>
+
+        <div class="input-group">
+          <label>種別</label>
+          <select id="depType"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+            <option value="入金">入金</option>
+            <option value="出金">出金</option>
+            <option value="調整">調整</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>金額 (円)</label>
+          <input type="number" id="depAmt" placeholder="0"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+        </div>
+
+        <div class="input-group">
+          <label>メモ (売上、資金移動など)</label>
+          <input type="text" id="depMemo" placeholder="詳細を入力"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+          <button class="btn-save" style="flex:1; background:#e2e8f0; color:#475569;"
+            onclick="closeDepositModal()">キャンセル</button>
+          <button class="btn-save" style="flex:1; background:linear-gradient(135deg, #10b981, #059669);"
+            onclick="registerDeposit()">登録</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="subjectModal" class="master-modal">
+      <div class="master-box" style="width: 90%; max-width: 400px;">
+        <h3>科目マスタ</h3>
+        <div class="input-group">
+          <label>科目名</label>
+          <input id="newSubject" type="text" placeholder="例: 消耗品費">
+        </div>
+        <div style="display:flex; gap:8px;">
+          <div class="input-group" style="flex:1;">
+            <label>税率%</label>
+            <input id="newTax" type="number" placeholder="10" value="10">
+          </div>
+          <div class="input-group" style="flex:2;">
+            <label>キーワード</label>
+            <input id="newKw" type="text" placeholder="任意">
+          </div>
+        </div>
+        <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:8px;">
+          <button id="updateSubBtn" onclick="updateSubject()"
+            style="display:none; padding:8px 16px; background:#f59e0b; color:white; border:none; border-radius:6px; font-weight:bold;">更新</button>
+          <button id="addSubBtn" onclick="addSubject()"
+            style="padding:8px 16px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">追加</button>
+        </div>
+
+        <div id="subjectListDiv" class="master-list"></div>
+        <button onclick="closeSubjectMaster()"
+          style="margin-top:16px; width:100%; padding:12px; background:#f1f5f9; border:none; border-radius:8px; font-weight:bold; color:#475569;">閉じる</button>
+      </div>
+    </div>
+
+    <div id="helpModal" class="help-modal" onclick="if(event.target===this) closeHelp()">
+      <div class="help-content">
+        <div class="help-header">
+          <h2>📱 使い方ガイド</h2>
+        </div>
+        <div class="help-body">
+          <div class="help-section">
+            <h3>🚀 基本の使い方</h3>
+            <p><strong>1. レシート撮影</strong><br>📷撮影ボタンをタップしてレシートを撮影</p>
+            <p><strong>2. 内容確認</strong><br>AIが自動で金額・店名・科目を読み取ります</p>
+            <p><strong>3. 編集（必要に応じて）</strong><br>カードをタップして内容を修正</p>
+            <p><strong>4. 申請送信</strong><br>💸まとめて申請ボタンで送信</p>
+          </div>
+
+          <div class="help-section">
+            <h3>📸 撮影のコツ</h3>
+            <ul>
+              <li>明るい場所で撮影する</li>
+              <li>レシート全体を画面に収める</li>
+              <li>平らな場所に置いて真上から撮影</li>
+              <li>手ぶれしないようにゆっくりと</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>📏 長いレシートの撮影</h3>
+            <p><strong>1枚に収まらない長いレシートの場合：</strong></p>
+            <ol>
+              <li>まず上半分を撮影</li>
+              <li>「前の明細の続き」にチェック✓</li>
+              <li>下半分を撮影</li>
+              <li>金額が自動で合算されます</li>
+            </ol>
+            <p style="font-size:0.95rem; color:#64748b; margin-top:8px;">※画像は両方とも保存され、カードに「×2」と表示されます</p>
+          </div>
+
+          <div class="help-section">
+            <h3>✏️ 編集機能</h3>
+            <p>レシートカードをタップすると編集画面が開きます：</p>
+            <ul>
+              <li><strong>金額</strong>：読み取りが不正確な場合に修正</li>
+              <li><strong>店名</strong>：正しい店舗名に変更</li>
+              <li><strong>科目</strong>：適切な経費科目を選択</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>🔧 よくある問題</h3>
+            <p><strong>金額が0円になる</strong><br>→ 明るい場所で再撮影するか、手動で入力</p>
+            <p><strong>店名が読めない</strong><br>→ 編集画面で正しい店名を入力</p>
+            <p><strong>科目がわからない</strong><br>→ 管理者に確認してください</p>
+          </div>
+
+          <div class="help-section">
+            <h3>📋 申請前チェック</h3>
+            <ul>
+              <li>✅ 金額が正しく入力されている</li>
+              <li>✅ 店名が正しく入力されている</li>
+              <li>✅ 適切な科目が選択されている</li>
+              <li>✅ レシート画像がはっきり見える</li>
+            </ul>
+          </div>
+        </div>
+        <div class="help-footer">
+          <button onclick="closeHelp()"
+            style="padding:12px 24px; background:#06b6d4; color:white; border:none; border-radius:12px; font-weight:bold; font-size:1.1rem;">閉じる</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-</div>
-
-<div id="confirmToast" class="confirm-toast">
-  <div id="confirmMsg" style="font-weight:900; font-size:1.1rem; text-align:center;">実行しますか？</div>
-  <div class="confirm-actions">
-    <button class="c-btn c-no" onclick="closeConfirm()">キャンセル</button>
-    <button class="c-btn c-yes" id="confirmYesBtn">実行</button>
+  <div id="confirmToast" class="confirm-toast">
+    <div id="confirmMsg" style="font-weight:900; font-size:1.1rem; text-align:center;">実行しますか？</div>
+    <div class="confirm-actions">
+      <button class="c-btn c-no" onclick="closeConfirm()">キャンセル</button>
+      <button class="c-btn c-yes" id="confirmYesBtn">実行</button>
+    </div>
   </div>
-</div>
 
-<div id="returnModal" class="confirm-toast" style="display: none;">
-  <div style="font-weight:900; font-size:1.1rem; text-align:center; margin-bottom: 16px;">差し戻し理由を入力</div>
-  <textarea id="returnComment" placeholder="例: 領収書が不鮮明です。再提出をお願いします。" rows="4" style="width: 100%; padding: 12px; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical;"></textarea>
-  <div class="confirm-actions" style="margin-top: 16px;">
-    <button class="c-btn c-no" onclick="closeReturnModal()">キャンセル</button>
-    <button class="c-btn c-yes" onclick="execReturn()">差し戻す</button>
+  <div id="returnModal" class="confirm-toast" style="display: none;">
+    <div style="font-weight:900; font-size:1.1rem; text-align:center; margin-bottom: 16px;">差し戻し理由を入力</div>
+    <textarea id="returnComment" placeholder="例: 領収書が不鮮明です。再提出をお願いします。" rows="4"
+      style="width: 100%; padding: 12px; font-size: 1rem; border: 2px solid #e2e8f0; border-radius: 8px; resize: vertical;"></textarea>
+    <div class="confirm-actions" style="margin-top: 16px;">
+      <button class="c-btn c-no" onclick="closeReturnModal()">キャンセル</button>
+      <button class="c-btn c-yes" onclick="execReturn()">差し戻す</button>
+    </div>
   </div>
-</div>
 
-<div id="loadingOverlay"><div class="spinner"></div><div id="loadText" style="margin-top:10px; font-weight:bold;">処理中...</div></div>
-<div id="toast"></div>
-<div id="imageModal" onclick="this.style.display='none'">
-  <img id="zoomImg">
-</div>
+  <div id="loadingOverlay">
+    <div class="spinner"></div>
+    <div id="loadText" style="margin-top:10px; font-weight:bold;">処理中...</div>
+  </div>
+  <div id="toast"></div>
+  <div id="imageModal" onclick="this.style.display='none'">
+    <img id="zoomImg">
+  </div>
 
-<script>
-  let cartItems = [];
-  let subjectMaster = [];
-  let subjectMasterWithTax = []; // 税率情報付き科目マスタ
-  let editingId = null;
-  let isAdminMode = false;
-  let pendingAppId = null;
-  let pendingAction = null;
-  let allPendingList = []; // フィルター用の全データ保存
+  <script>
+    let cartItems = [];
+    let subjectMaster = [];
+    let subjectMasterWithTax = []; // 税率情報付き科目マスタ
+    let editingId = null;
+    let isAdminMode = false;
+    let pendingAppId = null;
+    let pendingAction = null;
+    let allPendingList = []; // フィルター用の全データ保存
 
-  window.onload = function() {
-    google.script.run.withSuccessHandler(initData).getInitData();
-    // PCでの横スクロール補助
-    const con = document.getElementById('cardContainer');
-    con.addEventListener('wheel', e => {
-      if(e.deltaY !== 0) {
-        e.preventDefault();
-        con.scrollLeft += e.deltaY;
-      }
-    });
-  };
-
-  function initData(data) {
-    const sel = document.getElementById('applicantSelector');
-    sel.innerHTML = '';
-    data.list.forEach(u => {
-      const op = document.createElement('option');
-      op.value = u.id; op.text = u.name;
-      if (normalize(u.email) === normalize(data.currentUser.email)) op.selected = true;
-      sel.appendChild(op);
-    });
-    if (data.currentUser.role === 'ADMIN') {
-      document.getElementById('adminBtn').style.display = 'block';
-    }
-    // 科目マスタ（税率情報付き）を保存
-    subjectMasterWithTax = data.subjectMaster || [];
-  }
-  function normalize(s) { return String(s||'').trim().toLowerCase(); }
-
-  // ========== ユーザー機能 ==========
-  function openCamera() { document.getElementById('rFile').click(); }
-  
-  function handleFile(input) {
-    if (!input.files[0]) return;
-    const file = input.files[0];
-    const id = Date.now();
-    const isContinueMode = document.getElementById('continueMode').checked;
-
-    const reader = new FileReader();
-    reader.onload = e => {
-      const dataUrl = e.target.result;
-
-      // 続きモードの場合、最後の明細に追加
-      if (isContinueMode && cartItems.length > 0) {
-        const lastItem = cartItems[cartItems.length - 1];
-
-        // 画像を配列で保持（初回は配列化）
-        if (!Array.isArray(lastItem.imgData)) {
-          lastItem.imgData = [lastItem.imgData];
-        }
-        lastItem.imgData.push(dataUrl);
-
-        lastItem.status = 'analyzing';
-        renderCart();
-        showToast('続きを解析中...');
-
-        const base64 = dataUrl.split(',')[1];
-        const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
-
-        google.script.run.withSuccessHandler(res => {
-          lastItem.status = 'done';
-          lastItem.amount += res.ocr.amount; // 金額を加算
-
-          // receiptUrlも配列で保持
-          if (!Array.isArray(lastItem.receiptUrl)) {
-            lastItem.receiptUrl = [lastItem.receiptUrl];
-          }
-          lastItem.receiptUrl.push(res.receiptUrl);
-
-          renderCart();
-          showToast('続きを追加: +¥' + res.ocr.amount.toLocaleString());
-          document.getElementById('continueMode').checked = false; // チェックを外す
-        }).withFailureHandler(e => {
-          lastItem.status = 'error';
-          renderCart();
-          showToast('解析失敗: 手入力してください', 'error');
-        }).uploadReceiptForOcr(base64, mimeType);
-
-      } else {
-        // 通常モード：新しい明細を作成
-        const today = new Date().toISOString().split('T')[0];
-        const item = { id: id, status: 'analyzing', amount: 0, vendor: '', subject: '', invoiceReg: '不明', taxRate: 10, usageDate: today, purpose: '', imgData: dataUrl, receiptUrl: null };
-        cartItems.push(item);
-        renderCart();
-        showToast('解析を開始しました');
-
-        const base64 = dataUrl.split(',')[1];
-        const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
-
-        google.script.run.withSuccessHandler(res => {
-          const target = cartItems.find(i => i.id === id);
-          if(target) {
-            target.status = 'done';
-            target.amount = res.ocr.amount;
-            target.vendor = res.ocr.vendor;
-            target.subject = res.ocr.subject;
-            target.invoiceReg = res.ocr.invoiceReg || '不明';
-            target.taxRate = res.ocr.taxRate || 10;
-            target.usageDate = res.ocr.date || today;
-            target.receiptUrl = res.receiptUrl;
-            renderCart();
-            showToast('解析完了: ' + (target.vendor || '店名不明'));
-          }
-        }).withFailureHandler(e => {
-          const target = cartItems.find(i => i.id === id);
-          if(target) {
-            target.status = 'error';
-            renderCart();
-            showToast('解析失敗: 手入力してください', 'error');
-          }
-        }).uploadReceiptForOcr(base64, mimeType);
-      }
-
-      setTimeout(() => { document.getElementById('rFile').value = ''; }, 500);
+    window.onload = function () {
+      google.script.run.withSuccessHandler(initData).getInitData();
+      // PCでの横スクロール補助
+      // PCでの横スクロール補助 (廃止: 縦スクロール阻害のため)
+      // const con = document.getElementById('cardContainer');
+      // con.addEventListener('wheel', ...);
     };
-    reader.readAsDataURL(file);
-  }
 
-  function renderCart() {
-    const list = document.getElementById('cartList');
-    list.innerHTML = '';
-    let total = 0;
+    let editingAppId = null; // 申請編集モード時のID
 
-    if(cartItems.length === 0) {
-      list.innerHTML = '<div class="cart-empty">レシートを撮影してください</div>';
-      document.getElementById('totalDisplay').innerText = '0';
-      document.getElementById('submitBtn').disabled = true;
-      return;
+    function initData(data) {
+      const sel = document.getElementById('applicantSelector');
+      sel.innerHTML = '';
+      data.list.forEach(u => {
+        const op = document.createElement('option');
+        op.value = u.id; op.text = u.name;
+        if (normalize(u.email) === normalize(data.currentUser.email)) op.selected = true;
+        sel.appendChild(op);
+      });
+
+      // 管理者ならメニューに管理者項目を表示
+      if (data.currentUser.role === 'ADMIN') {
+        document.getElementById('adminMenuBlock').style.display = 'block';
+      }
+
+      // 科目マスタ（税率情報付き）を保存
+      subjectMasterWithTax = data.subjectMaster || [];
+
+      // 今月/今日を初期値にセット
+      const now = new Date();
+      const ym = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
+      const ymd = ym + '-' + ('0' + now.getDate()).slice(-2);
+
+      document.getElementById('reportMonthPicker').value = ym;
+
+      const dailyPicker = document.getElementById('dailyReportMonthPicker');
+      if (dailyPicker) {
+        dailyPicker.type = 'date';
+        dailyPicker.value = ymd;
+      }
     }
 
-    cartItems.forEach((item) => {
-      total += Number(item.amount || 0);
-      const div = document.createElement('div');
-      div.className = 'cart-item';
-      div.onclick = (e) => {
-        if(!e.target.closest('.cart-del-btn')) openEdit(item.id);
+    function cancelEditMode() {
+      if (!confirm('編集内容を破棄して新規作成に戻りますか？')) return;
+      editingAppId = null;
+      cartItems = [];
+      renderCart();
+    }
+
+    // ========== 画面遷移ロジック ==========
+    function switchView(viewId) {
+      // 全てのビューを非表示
+      document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+      // 指定ビューを表示
+      document.getElementById(viewId).classList.add('active');
+
+      // フッターナビのアクティブ状態更新
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+      if (viewId === 'userView') {
+        document.getElementById('navApply').classList.add('active');
+        // App Mode: Fixed viewport
+        document.documentElement.style.overflowY = 'hidden';
+        document.body.style.overflowY = 'hidden';
+        document.body.style.height = '100dvh';
+      } else if (viewId === 'historyView') {
+        document.getElementById('navHistory').classList.add('active');
+        document.documentElement.style.overflowY = 'hidden';
+        document.body.style.overflowY = 'hidden';
+        document.body.style.height = '100dvh';
+      } else if (viewId === 'menuView' || viewId.startsWith('report')) {
+        document.getElementById('navMenu').classList.add('active');
+        // Menu/Report might need scroll? Start with fixed to be safe, or auto if content long.
+        // Usually menu fits, report might need scroll. Let's force scrolling for report?
+        // For now, keep App Mode default for simplicity unless admin.
+        document.documentElement.style.overflowY = 'hidden';
+        document.body.style.overflowY = 'hidden';
+        document.body.style.height = '100dvh';
+      } else if (viewId === 'adminView') {
+        document.getElementById('navMenu').classList.add('active');
+        // Admin Mode: Global Scroll
+        document.documentElement.style.overflowY = 'auto';
+        document.body.style.overflowY = 'auto';
+        document.body.style.height = 'auto';
+      }
+    }
+
+    // ========== 履歴機能 ==========
+    // ========== 履歴機能 ==========
+    function loadHistory() {
+      // 月ピッカー初期化
+      const picker = document.getElementById('historyMonthPicker');
+
+      // 選択肢がまだない場合（初回）
+      if (picker.options.length <= 1) {
+        const now = new Date();
+        // 直近12ヶ月分生成
+        for (let i = 0; i < 12; i++) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const val = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+          const txt = d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+          const op = document.createElement('option');
+          op.value = val; op.text = txt;
+          if (i === 0) op.selected = true; // 今月
+          picker.appendChild(op);
+        }
+      }
+
+      const targetMonth = picker.value || '';
+      const listEl = document.getElementById('historyInnerList');
+      if (listEl) listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">読み込んでいます...</div>';
+
+      google.script.run.withSuccessHandler(list => {
+        if (!list || list.length === 0) {
+          listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">履歴はありません</div>';
+          return;
+        }
+        listEl.innerHTML = list.map(item => {
+          let stClass = 'st-apply';
+          if (item.statusLabel === '承認済' || item.statusLabel === '経理確定') stClass = 'st-ok';
+          else if (item.statusLabel === '却下') stClass = 'st-ng';
+          else if (item.statusLabel === '差し戻し') stClass = 'st-ret';
+
+          // 画像サムネイル
+          let thumbHtml = '';
+          if (item.firstImageId) {
+            const imgId = 'h-img-' + item.applicationId;
+            thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; overflow:hidden; background:#f1f5f9; margin-right:12px; flex-shrink:0; cursor:pointer;" onclick="zoomImage('${imgId}')">
+                <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;">
+             </div>`;
+            setTimeout(() => loadOneImage(item.firstImageId, imgId), 10);
+          } else {
+            thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#cbd5e1; margin-right:12px; flex-shrink:0;">
+                <span>📷</span>
+             </div>`;
+          }
+
+          const canEdit = (item.statusLabel !== '承認済' && item.statusLabel !== '経理確定');
+          const editBtn = canEdit
+            ? `<button onclick="loadApplicationForEdit('${item.applicationId}')" style="margin-top:8px; padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-size:0.8rem; color:#334155; cursor:pointer;">✎ 編集・再申請</button>`
+            : '';
+
+          return `
+            <div class="history-item">
+              <div style="display:flex; align-items:center; flex:1;">
+                 ${thumbHtml}
+                 <div style="display:flex; flex-direction:column; gap:4px; flex:1;">
+                    <div style="font-weight:bold; color:#1e293b;">${item.displayDate}</div>
+                    <div style="font-size:0.85rem; color:#64748b;">${item.statusLabel === '申請中' ? '申請中' : item.statusLabel}</div>
+                    ${editBtn}
+                 </div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                <div style="font-weight:900; font-size:1.1rem; color:#0f172a;">¥${Number(item.totalAmount).toLocaleString()}</div>
+                <div class="h-stat ${stClass}">${item.statusLabel}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }).withFailureHandler(e => {
+        listEl.innerHTML = '<div style="color:red; text-align:center;">読み込み失敗</div>';
+        showToast('エラー: ' + e.message, 'error');
+      }).api_getMyHistory(targetMonth);
+    }
+
+    function loadApplicationForEdit(appId) {
+      if (cartItems.length > 0) {
+        if (!confirm('現在入力中の内容は破棄されますがよろしいですか？')) return;
+      }
+      showLoad('申請データを取得中...');
+      google.script.run.withSuccessHandler(res => {
+        hideLoad();
+        editingAppId = appId;
+        cartItems = res.items;
+        renderCart();
+        switchView('userView');
+        showToast('編集モードになりました');
+      }).withFailureHandler(e => {
+        hideLoad();
+        showToast('取得エラー: ' + e.message, 'error');
+      }).api_getApplication(appId);
+    }
+
+    // ========== レポート機能 ==========
+    function loadMonthlyReport() {
+      const m = document.getElementById('reportMonthPicker').value;
+      if (!m) return;
+
+      document.getElementById('monthlyGrid').innerHTML = '<tr><td colspan="100" style="text-align:center;">読み込み中...</td></tr>';
+
+      google.script.run.withSuccessHandler(res => {
+        renderMonthlyReport(res);
+      }).withFailureHandler(e => {
+        showToast('レポート取得失敗: ' + e.message, 'error');
+      }).api_getMonthlyReport(m);
+    }
+
+    function renderMonthlyReport(data) {
+      // スコアカード
+      const sc = data.scorecard;
+      document.getElementById('repInc').innerText = '¥' + sc.income.toLocaleString();
+      document.getElementById('repExp').innerText = '¥' + sc.expense.toLocaleString();
+      document.getElementById('repBal').innerText = '¥' + sc.balance.toLocaleString();
+      document.getElementById('repToday').innerText = '¥' + sc.todayBalance.toLocaleString();
+
+      // グリッド
+      const grid = data.grid;
+      const tbl = document.getElementById('monthlyGrid');
+      let thHtml = '<thead><tr><th>日付</th>';
+      grid.subjects.forEach(s => thHtml += `<th>${s}</th>`);
+      thHtml += '<th>計</th></tr></thead>';
+
+      let tbHtml = '<tbody>';
+      grid.days.forEach(day => {
+        // 日付ラベル (2024-01-01 -> 1/1)
+        const parts = day.split('-');
+        const dLabel = `${Number(parts[1])}/${Number(parts[2])}`;
+        let rowHtml = `<tr><td>${dLabel}</td>`;
+        let rowSum = 0;
+        grid.subjects.forEach(sub => {
+          const val = grid.data[day][sub] || 0;
+          rowSum += val;
+          rowHtml += `<td style="color:${val === 0 ? '#cbd5e1' : '#0f172a'}">¥${val.toLocaleString()}</td>`;
+        });
+        rowHtml += `<td style="font-weight:bold;">¥${rowSum.toLocaleString()}</td></tr>`;
+        tbHtml += rowHtml;
+      });
+      tbHtml += '</tbody>';
+      tbl.innerHTML = thHtml + tbHtml;
+
+      // インボイスサマリ
+      const invBody = document.getElementById('invoiceBody');
+      const inv = data.invoice;
+      let invHtml = '';
+
+      const renderRow = (label, obj) => {
+        let h = '';
+        Object.keys(obj).forEach(rate => {
+          if (obj[rate] > 0) {
+            h += `<tr><td>${label}</td><td>${rate}%</td><td style="font-weight:bold;">¥${obj[rate].toLocaleString()}</td></tr>`;
+          }
+        });
+        return h;
       };
 
-      let overlay = item.status === 'analyzing' ? `<div class="analyzing-overlay"><div class="mini-spinner"></div></div>` : '';
-      let amtClass = item.amount > 0 ? 'cart-amount' : 'cart-amount zero';
-      let amtText = item.amount > 0 ? `¥${item.amount.toLocaleString()}` : '¥ -';
-      let statusText = item.status === 'analyzing' ? '解析中...' : (item.vendor || '店名不明');
+      invHtml += renderRow('あり', inv.withInvoice);
+      invHtml += renderRow('なし', inv.withoutInvoice);
+      invHtml += renderRow('不明', inv.unknown);
 
-      // 画像が配列の場合、最初の画像を表示し、枚数バッジを追加
-      const imgSrc = Array.isArray(item.imgData) ? item.imgData[0] : item.imgData;
-      const imgCount = Array.isArray(item.imgData) ? item.imgData.length : 1;
-      const imgBadge = imgCount > 1 ? `<div style="position:absolute; top:4px; right:4px; background:#3b82f6; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem; font-weight:700; box-shadow:0 2px 4px rgba(0,0,0,0.2);">×${imgCount}</div>` : '';
+      if (invHtml === '') invHtml = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">データなし</td></tr>';
+      invBody.innerHTML = invHtml;
+    }
 
-      div.innerHTML = `
+    function loadDailyReport() {
+      const m = document.getElementById('dailyReportMonthPicker').value;
+      if (!m) return;
+      const el = document.getElementById('dailyPersonList');
+      el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
+
+      google.script.run.withSuccessHandler(res => {
+        if (res.list.length === 0) {
+          el.innerHTML = '<div style="text-align:center; color:#94a3b8;">データがありません</div>';
+          return;
+        }
+        el.innerHTML = res.list.map(p => `
+          <div style="background:white; padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+            <div style="font-weight:bold; font-size:1.1rem;">${p.name}</div>
+            <div style="font-weight:900; font-size:1.3rem; color:#059669;">¥${p.total.toLocaleString()}</div>
+          </div>
+        `).join('');
+      }).withFailureHandler(e => {
+        el.innerHTML = 'エラー';
+        showToast(e.message, 'error');
+      }).api_getDailyReport(m);
+    }
+    function normalize(s) { return String(s || '').trim().toLowerCase(); }
+
+    // ========== ユーザー機能 ==========
+    function openCamera() { document.getElementById('rFile').click(); }
+
+    function handleFile(input) {
+      if (!input.files[0]) return;
+      const file = input.files[0];
+      const id = Date.now();
+      const isContinueMode = document.getElementById('continueMode').checked;
+
+      const reader = new FileReader();
+      reader.onload = e => {
+        const dataUrl = e.target.result;
+
+        // 続きモードの場合、最後の明細に追加
+        if (isContinueMode && cartItems.length > 0) {
+          const lastItem = cartItems[cartItems.length - 1];
+
+          // 画像を配列で保持（初回は配列化）
+          if (!Array.isArray(lastItem.imgData)) {
+            lastItem.imgData = [lastItem.imgData];
+          }
+          lastItem.imgData.push(dataUrl);
+
+          lastItem.status = 'analyzing';
+          renderCart();
+          showToast('続きを解析中...');
+
+          const base64 = dataUrl.split(',')[1];
+          const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+
+          google.script.run.withSuccessHandler(res => {
+            lastItem.status = 'done';
+            lastItem.amount += res.ocr.amount; // 金額を加算
+
+            // receiptUrlも配列で保持
+            if (!Array.isArray(lastItem.receiptUrl)) {
+              lastItem.receiptUrl = [lastItem.receiptUrl];
+            }
+            lastItem.receiptUrl.push(res.receiptUrl);
+
+            renderCart();
+            showToast('続きを追加: +¥' + res.ocr.amount.toLocaleString());
+            document.getElementById('continueMode').checked = false; // チェックを外す
+          }).withFailureHandler(e => {
+            lastItem.status = 'error';
+            renderCart();
+            showToast('解析失敗: 手入力してください', 'error');
+          }).uploadReceiptForOcr(base64, mimeType);
+
+        } else {
+          // 通常モード：新しい明細を作成
+          const today = new Date().toISOString().split('T')[0];
+          const item = { id: id, status: 'analyzing', amount: 0, vendor: '', subject: '', invoiceReg: '不明', taxRate: 10, usageDate: today, purpose: '', imgData: dataUrl, receiptUrl: null };
+          cartItems.push(item);
+          renderCart();
+          showToast('解析を開始しました');
+
+          const base64 = dataUrl.split(',')[1];
+          const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+
+          google.script.run.withSuccessHandler(res => {
+            const target = cartItems.find(i => i.id === id);
+            if (target) {
+              target.status = 'done';
+              target.amount = res.ocr.amount;
+              target.vendor = res.ocr.vendor;
+              target.subject = res.ocr.subject;
+              target.invoiceReg = res.ocr.invoiceReg || '不明';
+              target.taxRate = res.ocr.taxRate || 10;
+              target.usageDate = res.ocr.date || today;
+              target.receiptUrl = res.receiptUrl;
+              renderCart();
+              showToast('解析完了: ' + (target.vendor || '店名不明'));
+            }
+          }).withFailureHandler(e => {
+            const target = cartItems.find(i => i.id === id);
+            if (target) {
+              target.status = 'error';
+              renderCart();
+              showToast('解析失敗: 手入力してください', 'error');
+            }
+          }).uploadReceiptForOcr(base64, mimeType);
+        }
+
+        setTimeout(() => { document.getElementById('rFile').value = ''; }, 500);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderCart() {
+      const list = document.getElementById('cartList');
+      list.innerHTML = '';
+      let total = 0;
+
+      // 編集モード表示
+      if (editingAppId) {
+        const warning = document.createElement('div');
+        warning.innerHTML = `<div style="background:#fff7ed; color:#c2410c; padding:8px 12px; margin-bottom:12px; border-radius:8px; font-size:0.9rem; display:flex; justify-content:space-between; align-items:center;">
+          <span>📝 過去の申請を編集中</span>
+          <button onclick="cancelEditMode()" style="background:none; border:1px solid #c2410c; border-radius:4px; color:#c2410c; padding:2px 8px; font-size:0.75rem;">キャンセル</button>
+        </div>`;
+        list.appendChild(warning);
+      }
+
+      if (cartItems.length === 0) {
+        list.innerHTML += '<div class="cart-empty">レシートを撮影してください</div>';
+        document.getElementById('totalDisplay').innerText = '0';
+        document.getElementById('submitBtn').disabled = true;
+        const btnInner = document.getElementById('submitBtnText');
+        if (btnInner) btnInner.innerText = 'まとめて申請';
+        return;
+      }
+
+      cartItems.forEach((item) => {
+        total += Number(item.amount || 0);
+        const div = document.createElement('div');
+        div.className = 'cart-item';
+        div.onclick = (e) => {
+          if (!e.target.closest('.cart-del-btn')) openEdit(item.id);
+        };
+
+        let overlay = item.status === 'analyzing' ? `<div class="analyzing-overlay"><div class="mini-spinner"></div></div>` : '';
+        let amtClass = item.amount > 0 ? 'cart-amount' : 'cart-amount zero';
+        let amtText = item.amount > 0 ? `¥${item.amount.toLocaleString()}` : '¥ -';
+        let statusText = item.status === 'analyzing' ? '解析中...' : (item.vendor || '店名不明');
+
+        // 画像表示ロジック (編集時のreceiptUrl対応強化)
+        let imgHtml = '';
+        const hasImgData = item.imgData && (Array.isArray(item.imgData) ? item.imgData.length > 0 : item.imgData);
+        const hasUrl = item.receiptUrl && (Array.isArray(item.receiptUrl) ? item.receiptUrl.length > 0 : item.receiptUrl);
+
+        if (hasImgData) {
+          // 新規追加中の画像 (Base64)
+          const imgSrc = Array.isArray(item.imgData) ? item.imgData[0] : item.imgData;
+          const imgCount = Array.isArray(item.imgData) ? item.imgData.length : 1;
+          const badge = imgCount > 1 ? `<div style="position:absolute; top:4px; right:4px; background:#3b82f6; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem; font-weight:700;">×${imgCount}</div>` : '';
+          imgHtml = `<img src="${imgSrc}" class="cart-thumb">${badge}`;
+        } else if (hasUrl) {
+          // サーバー保存済画像 (編集モード)
+          const urls = Array.isArray(item.receiptUrl) ? item.receiptUrl : [item.receiptUrl];
+          const count = urls.length;
+          // 最初の画像のIDを取得してサムネイル表示を試みる
+          let firstId = null;
+          const m = urls[0].match(/id=([a-zA-Z0-9_-]+)/) || urls[0].match(/\/d\/([a-zA-Z0-9_-]+)/);
+          if (m) firstId = m[1];
+
+          if (firstId) {
+            const imgId = 'cart-img-' + item.id;
+            imgHtml = `<div class="cart-thumb" style="overflow:hidden; position:relative;">
+                <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                <div style="position:absolute; top:4px; right:4px; background:#64748b; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem;">保存済×${count}</div>
+             </div>`;
+            setTimeout(() => loadOneImage(firstId, imgId), 10);
+          } else {
+            imgHtml = `<div class="cart-thumb" style="background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:0.8rem; font-weight:bold;"><span>📷 済×${count}</span></div>`;
+          }
+        } else {
+          imgHtml = `<div class="cart-thumb" style="background:#f1f5f9;"></div>`;
+        }
+
+        div.innerHTML = `
         <div class="cart-item-header">
           <div class="cart-thumb-box">
-            <img src="${imgSrc}" class="cart-thumb">
-            ${imgBadge}
+            ${imgHtml}
             ${overlay}
           </div>
           <div class="cart-item-content">
@@ -923,169 +2453,197 @@
           </button>
         </div>
       `;
-      list.appendChild(div);
-    });
-    document.getElementById('totalDisplay').textContent = total.toLocaleString();
-    document.getElementById('submitBtn').disabled = false;
-  }
-
-  function delCart(id) {
-    if(!confirm('削除しますか？')) return;
-    cartItems = cartItems.filter(i => i.id !== id);
-    renderCart();
-  }
-
-  function openEdit(id) {
-    const item = cartItems.find(i => i.id === id);
-    if(!item) return;
-    editingId = id;
-
-    // 複数画像に対応
-    const imgBox = document.querySelector('.edit-img-box');
-    imgBox.innerHTML = '';
-    if (Array.isArray(item.imgData)) {
-      item.imgData.forEach((img, idx) => {
-        const imgEl = document.createElement('img');
-        imgEl.src = img;
-        imgEl.className = 'edit-img';
-        imgEl.style.marginBottom = idx < item.imgData.length - 1 ? '12px' : '0';
-        imgBox.appendChild(imgEl);
+        list.appendChild(div);
       });
-    } else {
-      const imgEl = document.createElement('img');
-      imgEl.src = item.imgData;
-      imgEl.className = 'edit-img';
-      imgBox.appendChild(imgEl);
+      document.getElementById('totalDisplay').textContent = total.toLocaleString();
+      document.getElementById('submitBtn').disabled = false;
+
+      const btnInner = document.getElementById('submitBtnText');
+      if (btnInner) {
+        btnInner.innerText = editingAppId ? '更新して再申請' : 'まとめて申請';
+      }
     }
 
-    document.getElementById('eDate').value = item.usageDate || new Date().toISOString().split('T')[0];
-    document.getElementById('eAmt').value = item.amount || '';
-    document.getElementById('eTax').value = item.taxRate || 10;
-    document.getElementById('eVen').value = item.vendor || '';
-    document.getElementById('eSub').value = item.subject || '';
-    document.getElementById('ePurpose').value = item.purpose || '';
-    document.getElementById('editModal').style.display = 'flex';
-  }
-
-  function saveEdit() {
-    const item = cartItems.find(i => i.id === editingId);
-    if(item) {
-      item.usageDate = document.getElementById('eDate').value;
-      item.amount = Number(document.getElementById('eAmt').value);
-      item.taxRate = Number(document.getElementById('eTax').value);
-      item.vendor = document.getElementById('eVen').value;
-      item.subject = document.getElementById('eSub').value;
-      item.purpose = document.getElementById('ePurpose').value;
-      if(item.status !== 'analyzing') item.status = 'done';
+    function delCart(id) {
+      if (!confirm('削除しますか？')) return;
+      cartItems = cartItems.filter(i => i.id !== id);
+      renderCart();
     }
-    renderCart();
-    document.getElementById('editModal').style.display = 'none';
-  }
 
-  // 科目変更時に税率を自動更新
-  function updateTaxRateBySubject() {
-    const subjectName = document.getElementById('eSub').value;
-    const subjectData = subjectMasterWithTax.find(s => s.name === subjectName);
-    if (subjectData) {
-      document.getElementById('eTax').value = subjectData.taxRate;
+    function openEdit(id) {
+      const item = cartItems.find(i => i.id === id);
+      if (!item) return;
+      editingId = id;
+
+      // 複数画像に対応
+      const imgBox = document.querySelector('.edit-img-box');
+      imgBox.innerHTML = '';
+      if (Array.isArray(item.imgData)) {
+        item.imgData.forEach((img, idx) => {
+          const imgEl = document.createElement('img');
+          imgEl.src = img;
+          imgEl.className = 'edit-img';
+          imgEl.style.marginBottom = idx < item.imgData.length - 1 ? '12px' : '0';
+          imgBox.appendChild(imgEl);
+        });
+      } else {
+        const imgEl = document.createElement('img');
+        imgEl.src = item.imgData;
+        imgEl.className = 'edit-img';
+        imgBox.appendChild(imgEl);
+      }
+
+      document.getElementById('eDate').value = item.usageDate || new Date().toISOString().split('T')[0];
+      document.getElementById('eAmt').value = item.amount || '';
+      document.getElementById('eTax').value = item.taxRate || 10;
+      document.getElementById('eVen').value = item.vendor || '';
+      document.getElementById('eSub').value = item.subject || '';
+      document.getElementById('ePurpose').value = item.purpose || '';
+      document.getElementById('editModal').style.display = 'flex';
     }
-  }
-  function closeEdit() { document.getElementById('editModal').style.display = 'none'; }
 
-  function submitCart() {
-    if(cartItems.length === 0) return;
-    const invalid = cartItems.some(i => !i.amount || i.amount <= 0);
-    if(invalid) return showToast('金額が未入力の明細があります！', 'error');
-    const analyzing = cartItems.some(i => i.status === 'analyzing');
-    if(analyzing) return showToast('解析中の明細があります', 'error');
-
-    if(!confirm(`合計 ¥${document.getElementById('totalDisplay').innerText} で申請しますか？`)) return;
-
-    const applicantId = document.getElementById('applicantSelector').value;
-    const data = { applicantId: applicantId, items: cartItems };
-
-    showLoad('申請送信中...');
-    google.script.run.withSuccessHandler(res => {
-      hideLoad();
-      showToast('申請が完了しました！');
-      cartItems = []; renderCart();
-    }).withFailureHandler(e => {
-      hideLoad(); showToast('エラー: ' + e.message, 'error');
-    }).createApplicationWithDetails(data);
-  }
-
-  // ========== 管理者機能 ==========
-  function toggleMode() {
-    const btn = document.getElementById('adminBtn');
-    if (!isAdminMode) {
-      isAdminMode = true;
-      document.getElementById('userView').classList.remove('active');
-      document.getElementById('adminView').classList.add('active');
-      btn.innerText = '申請へ';
-      loadAdminData();
-    } else {
-      isAdminMode = false;
-      document.getElementById('adminView').classList.remove('active');
-      document.getElementById('userView').classList.add('active');
-      btn.innerText = '管理者';
+    function saveEdit() {
+      const item = cartItems.find(i => i.id === editingId);
+      if (item) {
+        item.usageDate = document.getElementById('eDate').value;
+        item.amount = Number(document.getElementById('eAmt').value);
+        item.taxRate = Number(document.getElementById('eTax').value);
+        item.vendor = document.getElementById('eVen').value;
+        item.subject = document.getElementById('eSub').value;
+        item.purpose = document.getElementById('ePurpose').value;
+        if (item.status !== 'analyzing') item.status = 'done';
+      }
+      renderCart();
+      document.getElementById('editModal').style.display = 'none';
     }
-  }
 
-  function loadAdminData() {
-    showLoad('データ取得中...');
-    google.script.run.withSuccessHandler(res => {
-      hideLoad();
-      subjectMaster = res.subjectList;
-      allPendingList = res.pendingList; // 全データを保存
-      populateApplicantFilter(res.pendingList); // フィルター選択肢を設定
-      renderAdminCards(res.pendingList);
-    }).withFailureHandler(e => {
-      hideLoad(); showToast('取得失敗: ' + e.message, 'error');
-    }).getAdminDashboardData();
-  }
+    // 科目変更時に税率を自動更新
+    function updateTaxRateBySubject() {
+      const subjectName = document.getElementById('eSub').value;
+      const subjectData = subjectMasterWithTax.find(s => s.name === subjectName);
+      if (subjectData) {
+        document.getElementById('eTax').value = subjectData.taxRate;
+      }
+    }
+    function closeEdit() { document.getElementById('editModal').style.display = 'none'; }
 
-  function renderAdminCards(list) {
-    const con = document.getElementById('cardContainer');
-    con.innerHTML = '';
-    if (list.length === 0) { 
-      con.innerHTML = `
+    function submitCart() {
+      if (cartItems.length === 0) return;
+      const invalid = cartItems.some(i => !i.amount || i.amount <= 0);
+      if (invalid) return showToast('金額が未入力の明細があります！', 'error');
+      const analyzing = cartItems.some(i => i.status === 'analyzing');
+      if (analyzing) return showToast('解析中の明細があります', 'error');
+
+      const isUpdate = !!editingAppId;
+      const msg = isUpdate
+        ? `修正内容で更新（再申請）しますか？\n合計 ¥${document.getElementById('totalDisplay').innerText}`
+        : `合計 ¥${document.getElementById('totalDisplay').innerText} で申請しますか？`;
+
+      if (!confirm(msg)) return;
+
+      const applicantId = document.getElementById('applicantSelector').value;
+      const data = { applicantId: applicantId, items: cartItems };
+
+      showLoad(isUpdate ? '更新中...' : '申請送信中...');
+
+      const successHandler = (res) => {
+        hideLoad();
+        showToast(isUpdate ? '更新しました！' : '申請が完了しました！');
+        cartItems = [];
+        editingAppId = null;
+        renderCart();
+      };
+      const failureHandler = (e) => {
+        hideLoad(); showToast('エラー: ' + e.message, 'error');
+      };
+
+      if (isUpdate) {
+        google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_updateApplication(editingAppId, data);
+      } else {
+        google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).createApplicationWithDetails(data);
+      }
+    }
+
+    // ========== 管理者機能 ==========
+    function toggleMode() {
+      const btn = document.getElementById('adminBtn');
+      if (!isAdminMode) {
+        isAdminMode = true;
+        document.getElementById('userView').classList.remove('active');
+        document.getElementById('adminView').classList.add('active');
+        btn.innerText = '申請へ';
+        loadAdminData();
+      } else {
+        isAdminMode = false;
+        document.getElementById('adminView').classList.remove('active');
+        document.getElementById('userView').classList.add('active');
+        btn.innerText = '管理者';
+      }
+    }
+
+    function loadAdminData() {
+      showLoad('データ取得中...');
+
+
+
+      google.script.run.withSuccessHandler(res => {
+        hideLoad();
+        // res.subjectList は Object Array ({name, taxRate...})
+
+        // グローバル変数を更新
+        subjectMasterWithTax = res.subjectList;
+        subjectMaster = res.subjectList.map(s => s.name);
+
+        allPendingList = res.pendingList;
+        populateApplicantFilter(res.pendingList);
+        renderAdminCards(res.pendingList);
+      }).withFailureHandler(e => {
+        hideLoad(); showToast('取得失敗: ' + e.message, 'error');
+      }).getAdminDashboardData();
+    }
+
+    function renderAdminCards(list) {
+      const con = document.getElementById('cardContainer');
+      con.innerHTML = '';
+      if (list.length === 0) {
+        con.innerHTML = `
         <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
           <div style="font-size:3rem; margin-bottom:16px;">✅</div>
           <div>承認待ちの申請はありません</div>
           <div style="font-size:1rem; margin-top:8px; opacity:0.6;">全ての申請が処理済みです</div>
         </div>
-      `; 
-      return; 
-    }
-
-    // 重複チェック用のデータを準備
-    const duplicateMap = {};
-    list.forEach(app => {
-      app.details.forEach(detail => {
-        const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
-        if (!duplicateMap[key]) {
-          duplicateMap[key] = [];
-        }
-        duplicateMap[key].push({ appId: app.appId, detailId: detail.detailId });
-      });
-    });
-
-    list.forEach(app => {
-      const card = document.createElement('div');
-      card.className = 'admin-card';
-      card.id = 'card-' + app.appId;
-      
-      // この申請に重複がある明細があるかチェック
-      const hasDuplicates = app.details.some(detail => {
-        const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
-        return duplicateMap[key] && duplicateMap[key].length > 1;
-      });
-      
-      if (hasDuplicates) {
-        card.classList.add('duplicate-warning');
+      `;
+        return;
       }
-      
-      const head = `
+
+      // 重複チェック用のデータを準備
+      const duplicateMap = {};
+      list.forEach(app => {
+        app.details.forEach(detail => {
+          const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
+          if (!duplicateMap[key]) {
+            duplicateMap[key] = [];
+          }
+          duplicateMap[key].push({ appId: app.appId, detailId: detail.detailId });
+        });
+      });
+
+      list.forEach(app => {
+        const card = document.createElement('div');
+        card.className = 'admin-card';
+        card.id = 'card-' + app.appId;
+
+        // この申請に重複がある明細があるかチェック
+        const hasDuplicates = app.details.some(detail => {
+          const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
+          return duplicateMap[key] && duplicateMap[key].length > 1;
+        });
+
+        if (hasDuplicates) {
+          card.classList.add('duplicate-warning');
+        }
+
+        const head = `
         <div class="ac-header">
           <div>
             <div class="ac-user">${app.applicant} <span class="ac-dept">${app.dept || '-'}</span></div>
@@ -1095,25 +2653,28 @@
         </div>
       `;
 
-      let bodyHtml = '<div class="ac-body">';
-      app.details.forEach(d => {
-        let subOpts = subjectMaster.map(s => `<option value="${s}" ${s===d.subject?'selected':''}>${s}</option>`).join('');
-        const imgId = `img-${d.detailId}`;
-        if(d.hasImage) loadOneImage(d.fileId, imgId);
+        let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
+        app.details.forEach(d => {
+          // 科目のdefault optionを追加
+          let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
+            subjectMaster.map(s => `<option value="${s}" ${s === d.subject ? 'selected' : ''}>${s}</option>`).join('');
 
-        // この明細が重複しているかチェック
-        const detailKey = `${app.applicant}_${d.vendor}_${d.amount}`;
-        const isDuplicate = duplicateMap[detailKey] && duplicateMap[detailKey].length > 1;
-        
-        const invOpts = ['あり', 'なし', '不明'].map(v =>
-          `<option value="${v}" ${v===(d.invoiceReg||'不明')?'selected':''}>${v}</option>`
-        ).join('');
+          const imgId = `img-${d.detailId}`;
+          if (d.hasImage) loadOneImage(d.fileId, imgId);
 
-        const taxOpts = [10, 8].map(t =>
-          `<option value="${t}" ${t===(d.taxRate||10)?'selected':''}>${t}%</option>`
-        ).join('');
+          // この明細が重複しているかチェック
+          const detailKey = `${app.applicant}_${d.vendor}_${d.amount}`;
+          const isDuplicate = duplicateMap[detailKey] && duplicateMap[detailKey].length > 1;
 
-        bodyHtml += `
+          const invOpts = ['あり', 'なし', '不明'].map(v =>
+            `<option value="${v}" ${v === (d.invoiceReg || '不明') ? 'selected' : ''}>${v}</option>`
+          ).join('');
+
+          const taxOpts = [10, 8].map(t =>
+            `<option value="${t}" ${t === (d.taxRate || 10) ? 'selected' : ''}>${t}%</option>`
+          ).join('');
+
+          bodyHtml += `
           <div class="detail-item" id="det-${d.detailId}" ${isDuplicate ? 'style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444; padding: 12px 0 12px 12px; box-sizing: border-box;"' : ''}>
             ${isDuplicate ? '<div style="font-size: 0.8rem; color: #dc2626; font-weight: 700; margin-bottom: 8px;">⚠️ 重複の可能性があります</div>' : ''}
             <div class="d-row">
@@ -1121,250 +2682,382 @@
                 <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" src="">
               </div>
               <div class="d-inputs">
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">利用日</label>
-                  <input type="date" class="d-date" value="${d.usageDate || ''}" style="font-size: 0.9rem; padding: 8px; box-sizing: border-box;">
+                <div class="input-group-compact span-full">
+                  <label>利用日</label>
+                  <input type="date" class="d-date" value="${d.usageDate || ''}">
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">店名</label>
-                  <input type="text" class="d-vendor" value="${d.vendor}" placeholder="店名" style="font-size: 0.9rem; padding: 8px; box-sizing: border-box;">
+                <div class="input-group-compact span-full">
+                  <label>店名</label>
+                  <input type="text" class="d-vendor" value="${d.vendor}" placeholder="店名">
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">金額（円）</label>
-                  <input type="number" class="d-amount" value="${d.amount}" placeholder="金額" style="font-size: 0.9rem; padding: 8px; box-sizing: border-box;">
+                <div class="input-group-compact">
+                  <label>金額（円）</label>
+                  <input type="number" class="d-amount" value="${d.amount}" placeholder="金額">
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">税率</label>
-                  <select class="d-taxrate" style="font-size: 0.9rem; padding: 8px; box-sizing: border-box;">${taxOpts}</select>
+                <div class="input-group-compact">
+                  <label>税率</label>
+                  <select class="d-taxrate">${taxOpts}</select>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">科目</label>
-                  <select class="d-subject" style="font-size: 0.9rem; padding: 8px; box-sizing: border-box;">${subOpts}</select>
+                <div class="input-group-compact">
+                  <label>科目</label>
+                  <select class="d-subject">${subOpts}</select>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">インボイス登録</label>
-                  <select class="d-invoice" style="font-size: 0.9rem; padding: 8px; box-sizing: border-box;">${invOpts}</select>
+                <div class="input-group-compact">
+                  <label>インボイス登録</label>
+                  <select class="d-invoice">${invOpts}</select>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 4px; box-sizing: border-box;">
-                  <label style="font-size: 0.75rem; font-weight: 600; color: #64748b;">備考・利用目的</label>
-                  <textarea class="d-purpose" placeholder="会議費、接待など" rows="2" style="font-size: 0.9rem; padding: 8px; resize: vertical; box-sizing: border-box; min-height: auto;">${d.purpose || ''}</textarea>
+                <div class="input-group-compact span-full">
+                  <label>備考・利用目的</label>
+                  <textarea class="d-purpose" placeholder="会議費、接待など" rows="1">${d.purpose || ''}</textarea>
                 </div>
               </div>
             </div>
           </div>
-        `;
+          
+          `;
+        });
+        bodyHtml += '</div>';
+
+        card.innerHTML = head + bodyHtml;
+
+        const foot = document.createElement('div');
+        foot.className = 'ac-footer';
+
+        const btnRj = document.createElement('button');
+        btnRj.className = 'btn-rj';
+        btnRj.innerText = '却下';
+        btnRj.onclick = function () { openConfirm(app.appId, 'reject'); };
+
+        const btnRt = document.createElement('button');
+        btnRt.className = 'btn-rt';
+        btnRt.innerText = '差し戻し';
+        btnRt.onclick = function () { openReturnModal(app.appId); };
+
+        const btnAp = document.createElement('button');
+        btnAp.className = 'btn-ap';
+        btnAp.innerText = '承認';
+        btnAp.onclick = function () { openConfirm(app.appId, 'approve'); };
+
+        foot.appendChild(btnRj);
+        foot.appendChild(btnRt);
+        foot.appendChild(btnAp);
+        card.appendChild(foot);
+
+        con.appendChild(card);
       });
-      bodyHtml += '</div>';
-      
-      card.innerHTML = head + bodyHtml;
-
-      const foot = document.createElement('div');
-      foot.className = 'ac-footer';
-
-      const btnRj = document.createElement('button');
-      btnRj.className = 'btn-rj';
-      btnRj.innerText = '却下';
-      btnRj.onclick = function() { openConfirm(app.appId, 'reject'); };
-
-      const btnRt = document.createElement('button');
-      btnRt.className = 'btn-rt';
-      btnRt.innerText = '差し戻し';
-      btnRt.onclick = function() { openReturnModal(app.appId); };
-
-      const btnAp = document.createElement('button');
-      btnAp.className = 'btn-ap';
-      btnAp.innerText = '承認';
-      btnAp.onclick = function() { openConfirm(app.appId, 'approve'); };
-
-      foot.appendChild(btnRj);
-      foot.appendChild(btnRt);
-      foot.appendChild(btnAp);
-      card.appendChild(foot);
-
-      con.appendChild(card);
-    });
-  }
-
-  function loadOneImage(fileId, imgDomId) {
-    google.script.run.withSuccessHandler(b64 => {
-      if(b64) document.getElementById(imgDomId).src = b64;
-    }).api_getReceiptImage(fileId);
-  }
-
-  function openConfirm(appId, action) {
-    pendingAppId = appId;
-    pendingAction = action;
-    const msg = action === 'approve' ? 'この内容で承認しますか？' : '却下しますか？';
-    document.getElementById('confirmMsg').innerText = msg;
-    const yesBtn = document.getElementById('confirmYesBtn');
-    yesBtn.onclick = function() { execProcess(); };
-    document.getElementById('confirmToast').style.display = 'flex';
-  }
-
-  function closeConfirm() {
-    document.getElementById('confirmToast').style.display = 'none';
-    pendingAppId = null;
-    pendingAction = null;
-  }
-
-  function execProcess() {
-    const appId = pendingAppId;
-    const action = pendingAction;
-    closeConfirm();
-
-    const card = document.getElementById('card-' + appId);
-    const details = [];
-    card.querySelectorAll('.detail-item').forEach(row => {
-      const dId = row.id.replace('det-', '');
-      const date = row.querySelector('.d-date').value;
-      const sub = row.querySelector('.d-subject').value;
-      const ven = row.querySelector('.d-vendor').value;
-      const amt = row.querySelector('.d-amount').value;
-      const tax = row.querySelector('.d-taxrate').value;
-      const inv = row.querySelector('.d-invoice').value;
-      const pur = row.querySelector('.d-purpose').value;
-      details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
-    });
-
-    card.style.transition = 'opacity 0.3s, transform 0.3s';
-    card.style.opacity = '0';
-    card.style.transform = 'translateY(-20px)';
-    setTimeout(() => card.remove(), 300);
-
-    google.script.run.withSuccessHandler(() => {
-      showToast('処理完了');
-    }).withFailureHandler(e => {
-      showToast('エラー: ' + e.message, 'error');
-    }).processApplicationWithEdit(appId, action, details);
-  }
-
-  function openReturnModal(appId) {
-    pendingAppId = appId;
-    document.getElementById('returnComment').value = '';
-    document.getElementById('returnModal').style.display = 'flex';
-  }
-
-  function closeReturnModal() {
-    document.getElementById('returnModal').style.display = 'none';
-    pendingAppId = null;
-  }
-
-  function execReturn() {
-    const appId = pendingAppId;
-    const comment = document.getElementById('returnComment').value;
-    closeReturnModal();
-
-    const card = document.getElementById('card-' + appId);
-    const details = [];
-    card.querySelectorAll('.detail-item').forEach(row => {
-      const dId = row.id.replace('det-', '');
-      const date = row.querySelector('.d-date').value;
-      const sub = row.querySelector('.d-subject').value;
-      const ven = row.querySelector('.d-vendor').value;
-      const amt = row.querySelector('.d-amount').value;
-      const tax = row.querySelector('.d-taxrate').value;
-      const inv = row.querySelector('.d-invoice').value;
-      const pur = row.querySelector('.d-purpose').value;
-      details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
-    });
-
-    card.style.transition = 'opacity 0.3s, transform 0.3s';
-    card.style.opacity = '0';
-    card.style.transform = 'translateY(-20px)';
-    setTimeout(() => card.remove(), 300);
-
-    google.script.run.withSuccessHandler(() => {
-      showToast('差し戻しを実行しました');
-    }).withFailureHandler(e => {
-      showToast('エラー: ' + e.message, 'error');
-    }).processReturn(appId, comment, details);
-  }
-
-  // 科目マスタ
-  function openSubjectMaster() { renderSubjectList(); document.getElementById('subjectModal').style.display = 'flex'; }
-  function renderSubjectList() {
-    const div = document.getElementById('subjectListDiv');
-    div.innerHTML = subjectMaster.map(s => 
-      `<div class="master-item"><span>${s}</span><span class="del-sub" onclick="delSubject('${s}')" style="color:red; cursor:pointer; padding:4px;">✕</span></div>`
-    ).join('');
-  }
-  function addSubject() {
-    const val = document.getElementById('newSubject').value;
-    if(!val) return;
-    google.script.run.withSuccessHandler(list => {
-      subjectMaster = list; renderSubjectList(); document.getElementById('newSubject').value='';
-    }).api_addSubject(val);
-  }
-  function delSubject(val) {
-    if(!confirm('削除しますか？')) return;
-    google.script.run.withSuccessHandler(list => {
-      subjectMaster = list; renderSubjectList();
-    }).api_deleteSubject(val);
-  }
-
-  function showLoad(txt) { document.getElementById('loadText').innerText=txt; document.getElementById('loadingOverlay').style.display='flex'; }
-  function hideLoad() { document.getElementById('loadingOverlay').style.display='none'; }
-  function showToast(msg, type='normal') { 
-    const t = document.getElementById('toast'); t.innerText=msg; 
-    t.style.background = type==='error' ? '#ef4444' : '#1e293b';
-    t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2000); 
-  }
-  function zoomImage(imgId) {
-    const src = document.getElementById(imgId).src;
-    if(src) { document.getElementById('zoomImg').src = src; document.getElementById('imageModal').style.display = 'flex'; }
-  }
-  
-  // ========== フィルター機能 ==========
-  function populateApplicantFilter(pendingList) {
-    const filter = document.getElementById('applicantFilter');
-    const applicants = [...new Set(pendingList.map(app => app.applicant))].sort();
-    
-    // 既存のオプションを削除（「全ての申請者」以外）
-    while (filter.children.length > 1) {
-      filter.removeChild(filter.lastChild);
     }
-    
-    // 申請者リストを追加
-    applicants.forEach(name => {
-      const option = document.createElement('option');
-      option.value = name;
-      option.textContent = name;
-      filter.appendChild(option);
-    });
-    
-    // フィルターイベントを設定
-    filter.onchange = applyApplicantFilter;
-  }
-  
-  function applyApplicantFilter() {
-    const selectedApplicant = document.getElementById('applicantFilter').value;
-    const filteredList = selectedApplicant 
-      ? allPendingList.filter(app => app.applicant === selectedApplicant)
-      : allPendingList;
-    
-    // 合計金額を計算
-    const totalAmount = filteredList.reduce((sum, app) => sum + Number(app.totalAmount || 0), 0);
-    
-    // 合計金額表示の更新
-    const totalDisplay = document.getElementById('filterTotalDisplay');
-    const totalSpan = document.getElementById('filterTotal');
-    
-    if (selectedApplicant && filteredList.length > 0) {
-      totalSpan.textContent = totalAmount.toLocaleString();
-      totalDisplay.style.display = 'block';
-    } else {
-      totalDisplay.style.display = 'none';
-    }
-    
-    renderAdminCards(filteredList);
-  }
 
-  function showHelp() {
-    document.getElementById('helpModal').style.display = 'flex';
-  }
-  function closeHelp() {
-    document.getElementById('helpModal').style.display = 'none';
-  }
-</script>
+    function loadOneImage(fileId, imgDomId) {
+      google.script.run.withSuccessHandler(b64 => {
+        const img = document.getElementById(imgDomId);
+        if (!img) return;
+        if (b64) {
+          img.src = b64;
+        } else {
+          // 読み込み失敗時のプレースホルダー
+          img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#94a3b8; font-size:0.8rem;">画像なし</div>';
+        }
+      }).withFailureHandler(e => {
+        const img = document.getElementById(imgDomId);
+        if (img) img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#ef4444; font-size:0.8rem;">読込エラー</div>';
+      }).api_getReceiptImage(fileId);
+    }
+
+    function openConfirm(appId, action) {
+      pendingAppId = appId;
+      pendingAction = action;
+      const msg = action === 'approve' ? 'この内容で承認しますか？' : '却下しますか？';
+      document.getElementById('confirmMsg').innerText = msg;
+      const yesBtn = document.getElementById('confirmYesBtn');
+      yesBtn.onclick = function () { execProcess(); };
+      document.getElementById('confirmToast').style.display = 'flex';
+    }
+
+    function closeConfirm() {
+      document.getElementById('confirmToast').style.display = 'none';
+      pendingAppId = null;
+      pendingAction = null;
+    }
+
+    function execProcess() {
+      const appId = pendingAppId;
+      const action = pendingAction;
+      closeConfirm();
+
+      const card = document.getElementById('card-' + appId);
+      const details = [];
+      card.querySelectorAll('.detail-item').forEach(row => {
+        const dId = row.id.replace('det-', '');
+        const date = row.querySelector('.d-date').value;
+        const sub = row.querySelector('.d-subject').value;
+        const ven = row.querySelector('.d-vendor').value;
+        const amt = row.querySelector('.d-amount').value;
+        const tax = row.querySelector('.d-taxrate').value;
+        const inv = row.querySelector('.d-invoice').value;
+        const pur = row.querySelector('.d-purpose').value;
+        details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
+      });
+
+      card.style.transition = 'opacity 0.3s, transform 0.3s';
+      card.style.opacity = '0';
+      card.style.transform = 'translateY(-20px)';
+      setTimeout(() => card.remove(), 300);
+
+      google.script.run.withSuccessHandler(() => {
+        showToast('処理完了');
+      }).withFailureHandler(e => {
+        showToast('エラー: ' + e.message, 'error');
+      }).processApplicationWithEdit(appId, action, details);
+    }
+
+    function openReturnModal(appId) {
+      pendingAppId = appId;
+      document.getElementById('returnComment').value = '';
+      document.getElementById('returnModal').style.display = 'flex';
+    }
+
+    function closeReturnModal() {
+      document.getElementById('returnModal').style.display = 'none';
+      pendingAppId = null;
+    }
+
+    function execReturn() {
+      const appId = pendingAppId;
+      const comment = document.getElementById('returnComment').value;
+      closeReturnModal();
+
+      const card = document.getElementById('card-' + appId);
+      const details = [];
+      card.querySelectorAll('.detail-item').forEach(row => {
+        const dId = row.id.replace('det-', '');
+        const date = row.querySelector('.d-date').value;
+        const sub = row.querySelector('.d-subject').value;
+        const ven = row.querySelector('.d-vendor').value;
+        const amt = row.querySelector('.d-amount').value;
+        const tax = row.querySelector('.d-taxrate').value;
+        const inv = row.querySelector('.d-invoice').value;
+        const pur = row.querySelector('.d-purpose').value;
+        details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
+      });
+
+      card.style.transform = 'translateY(-20px)';
+      setTimeout(() => card.remove(), 300);
+
+      google.script.run.withSuccessHandler(() => {
+        showToast('差し戻しを実行しました');
+      }).withFailureHandler(e => {
+        showToast('エラー: ' + e.message, 'error');
+      }).processReturn(appId, comment, details);
+    }
+
+    // 画像拡大表示 (修正)
+    function zoomImage(imgIdOrElementId) {
+      const img = document.getElementById(imgIdOrElementId);
+      if (img && img.src) {
+        document.getElementById('zoomImg').src = img.src;
+        document.getElementById('imageModal').style.display = 'flex';
+      }
+    }
+
+    // 科目マスタ
+    // 科目マスタ
+    let editingSubjectName = null;
+
+    function openSubjectMaster() {
+      // 一覧描画は loadAdminData で取得済み assuming subjectMasterWithTax has the data
+      renderSubjectList();
+      resetSubjectInputs();
+      document.getElementById('subjectModal').style.display = 'flex';
+    }
+
+    function closeSubjectMaster() {
+      document.getElementById('subjectModal').style.display = 'none';
+      resetSubjectInputs();
+    }
+
+    function resetSubjectInputs() {
+      document.getElementById('newSubject').value = '';
+      document.getElementById('newTax').value = '10';
+      document.getElementById('newKw').value = '';
+      editingSubjectName = null;
+      document.getElementById('updateSubBtn').style.display = 'none';
+      document.getElementById('addSubBtn').style.display = 'inline-block';
+    }
+
+    function renderSubjectList() {
+      const div = document.getElementById('subjectListDiv');
+      // subjectMasterWithTax は {name, taxRate, keywords} の配列が入っている前提
+      // loadAdminData で res.subjectList (これは以前は名前配列だったが、Object配列になった) を受け取る必要がある
+      const list = subjectMasterWithTax; // initDataやloadAdminDataで更新される
+
+      if (!list || list.length === 0) {
+        div.innerHTML = '<div style="color:#94a3b8; text-align:center;">なし</div>';
+        return;
+      }
+
+      div.innerHTML = list.map(s => {
+        // s が文字列の場合（古いデータ互換）とオブジェクトの場合を考慮
+        const name = s.name || s;
+        const tax = s.taxRate || 10;
+        return `< div class="master-item" >
+            <div style="flex:1;">
+                <div style="font-weight:bold;">${name}</div>
+                <div style="font-size:0.8rem; color:#64748b;">税率: ${tax}%</div>
+            </div>
+            <button onclick="startEditSubject('${name}', ${tax}, '${s.keywords || ''}')" style="margin-right:8px; padding:4px 8px; border:1px solid #cbd5e1; background:white; border-radius:4px;">編集</button>
+            <span class="del-sub" onclick="delSubject('${name}')" style="color:red; cursor:pointer; padding:4px;">✕</span>
+          </div > `;
+      }).join('');
+    }
+
+    function startEditSubject(name, tax, kw) {
+      editingSubjectName = name;
+      document.getElementById('newSubject').value = name;
+      document.getElementById('newTax').value = tax;
+      document.getElementById('newKw').value = kw;
+      document.getElementById('updateSubBtn').style.display = 'inline-block';
+      document.getElementById('addSubBtn').style.display = 'none';
+    }
+
+    function addSubject() {
+      const name = document.getElementById('newSubject').value;
+      const tax = document.getElementById('newTax').value;
+      const kw = document.getElementById('newKw').value;
+      if (!name) return;
+
+      google.script.run.withSuccessHandler(list => {
+        // 返却値をグローバル変数に反映
+        updateSubjectGlobal(list);
+        renderSubjectList();
+        resetSubjectInputs();
+      }).api_addSubject(name, tax, kw);
+    }
+
+    function updateSubject() {
+      if (!editingSubjectName) return;
+      const name = document.getElementById('newSubject').value;
+      const tax = document.getElementById('newTax').value;
+      const kw = document.getElementById('newKw').value;
+
+      google.script.run.withSuccessHandler(list => {
+        updateSubjectGlobal(list);
+        renderSubjectList();
+        resetSubjectInputs();
+      }).api_updateSubject(editingSubjectName, name, tax, kw);
+    }
+
+    function delSubject(val) {
+      if (!confirm(`科目「${val}」を削除しますか？`)) return;
+      google.script.run.withSuccessHandler(list => {
+        updateSubjectGlobal(list);
+        renderSubjectList();
+      }).api_deleteSubject(val);
+    }
+
+    function updateSubjectGlobal(list) {
+      // リストは {name, taxRate, keywords} の配列
+      subjectMasterWithTax = list;
+      // 単純な名前リストも更新しておく（互換性）
+      subjectMaster = list.map(s => s.name);
+    }
+
+    function showLoad(txt) { document.getElementById('loadText').innerText = txt; document.getElementById('loadingOverlay').style.display = 'flex'; }
+    function hideLoad() { document.getElementById('loadingOverlay').style.display = 'none'; }
+    function showToast(msg, type = 'normal') {
+      const t = document.getElementById('toast'); t.innerText = msg;
+      t.style.background = type === 'error' ? '#ef4444' : '#1e293b';
+      t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000);
+    }
+    function zoomImage(imgId) {
+      const src = document.getElementById(imgId).src;
+      if (src) { document.getElementById('zoomImg').src = src; document.getElementById('imageModal').style.display = 'flex'; }
+    }
+
+    // ========== フィルター機能 ==========
+    function populateApplicantFilter(pendingList) {
+      const filter = document.getElementById('applicantFilter');
+      const applicants = [...new Set(pendingList.map(app => app.applicant))].sort();
+
+      // 既存のオプションを削除（「全ての申請者」以外）
+      while (filter.children.length > 1) {
+        filter.removeChild(filter.lastChild);
+      }
+
+      // 申請者リストを追加
+      applicants.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        filter.appendChild(option);
+      });
+
+      // フィルターイベントを設定
+      filter.onchange = applyApplicantFilter;
+    }
+
+    function applyApplicantFilter() {
+      const selectedApplicant = document.getElementById('applicantFilter').value;
+      const filteredList = selectedApplicant
+        ? allPendingList.filter(app => app.applicant === selectedApplicant)
+        : allPendingList;
+
+      // 合計金額を計算
+      const totalAmount = filteredList.reduce((sum, app) => sum + Number(app.totalAmount || 0), 0);
+
+      // 合計金額表示の更新
+      const totalDisplay = document.getElementById('filterTotalDisplay');
+      const totalSpan = document.getElementById('filterTotal');
+
+      if (selectedApplicant && filteredList.length > 0) {
+        totalSpan.textContent = totalAmount.toLocaleString();
+        totalDisplay.style.display = 'block';
+      } else {
+        totalDisplay.style.display = 'none';
+      }
+
+      renderAdminCards(filteredList);
+    }
+
+    function showHelp() {
+      document.getElementById('helpModal').style.display = 'flex';
+    }
+    function closeHelp() {
+      document.getElementById('helpModal').style.display = 'none';
+    }
+    // --- 入金登録モーダル ---
+    function openDepositModal() {
+      document.getElementById('depositModal').style.display = 'flex';
+      document.getElementById('depDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('depAmt').value = '';
+      document.getElementById('depMemo').value = '';
+    }
+
+    function closeDepositModal() {
+      document.getElementById('depositModal').style.display = 'none';
+    }
+
+    function registerDeposit() {
+      const type = document.getElementById('depType').value;
+      const date = document.getElementById('depDate').value;
+      const amt = document.getElementById('depAmt').value;
+      const memo = document.getElementById('depMemo').value;
+
+      if (!date || !amt) {
+        showToast('日付と金額は必須です', 'error');
+        return;
+      }
+
+      showLoad('登録処理中...');
+      google.script.run.withSuccessHandler(res => {
+        hideLoad();
+        closeDepositModal();
+        showToast(type + 'を登録しました');
+      }).withFailureHandler(e => {
+        hideLoad();
+        showToast('エラー: ' + e.message, 'error');
+      }).api_registerDeposit(date, Number(amt), memo, type);
+    }
+  </script>
 </body>
+
 </html>

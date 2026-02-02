@@ -73,13 +73,14 @@ function getAdminDashboardData() {
                 var rUrl = dRow[DETAIL_COL.RECEIPT_URL - 1];
                 var fileId = '';
                 if (rUrl) {
-                    // URLからID抽出 (簡易的)
-                    var match = rUrl.match(/id=([a-zA-Z0-9_-]+)/);
-                    if (match) fileId = match[1];
+                    // URLからID抽出 (互換性向上)
+                    var idMatch = rUrl.match(/id=([a-zA-Z0-9_-]+)/) || rUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (idMatch) fileId = idMatch[1];
+
                     // 複数ある場合は最初の1つ目のIDを取得（画像表示用）
                     if (!fileId && rUrl.indexOf('\n') !== -1) {
                         var firstUrl = rUrl.split('\n')[0];
-                        var m2 = firstUrl.match(/id=([a-zA-Z0-9_-]+)/);
+                        var m2 = firstUrl.match(/id=([a-zA-Z0-9_-]+)/) || firstUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
                         if (m2) fileId = m2[1];
                     }
                 }
@@ -337,15 +338,43 @@ function api_getReceiptImage(fileId) {
 /**
  * 科目マスタ追加
  */
-function api_addSubject(name) {
+function api_addSubject(name, taxRate, keywords) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
-    sheet.appendRow([name, 10, '']); // デフォルト税率10%
+    // 重複チェック
+    var list = sheet.getRange(2, 1, sheet.getLastRow() || 1, 1).getValues().flat().filter(String);
+    if (list.includes(name)) throw new Error('既に存在する科目名です');
 
-    // リストを返す
-    return sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat().filter(String);
+    sheet.appendRow([name, taxRate || 10, keywords || '']);
+
+    // リストを返す(Object Array)
+    return getSubjectListObject_(sheet);
+}
+
+/**
+ * 科目マスタ更新
+ */
+function api_updateSubject(oldName, name, taxRate, keywords) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
+    var data = sheet.getDataRange().getValues(); // 全データ取得
+
+    // ヘッダ飛ばして検索
+    for (var i = 1; i < data.length; i++) {
+        if (data[i][0] === oldName) {
+            // 更新
+            sheet.getRange(i + 1, 1).setValue(name);
+            sheet.getRange(i + 1, 2).setValue(taxRate);
+            sheet.getRange(i + 1, 3).setValue(keywords);
+            break;
+        }
+    }
+
+    return getSubjectListObject_(sheet);
 }
 
 /**
@@ -365,7 +394,249 @@ function api_deleteSubject(name) {
         }
     }
 
+    return getSubjectListObject_(sheet);
+}
+
+function getSubjectListObject_(sheet) {
     var last = sheet.getLastRow();
     if (last <= 1) return [];
-    return sheet.getRange(2, 1, last - 1, 1).getValues().flat().filter(String);
+    var vals = sheet.getRange(2, 1, last - 1, 3).getValues(); // Name, Tax, Keywords
+    return vals.map(function (r) {
+        return { name: r[0], taxRate: r[1], keywords: r[2] };
+    }).filter(function (o) { return !!o.name; });
+}
+
+/**
+ * 月次レポート取得
+ * targetMonth: 'yyyy-MM'
+ */
+function api_getMonthlyReport(targetMonth) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var data = getReportData_(targetMonth);
+
+    // 1. スコアカード集計 & 2. インボイス集計
+    var totalIncome = 0; // 入金 (科目「入金」または「仮払金」などを想定。今回は「入金」で判定)
+    var totalExpense = 0;
+    var invoiceSummary = {
+        withInvoice: { "10": 0, "8": 0 },
+        withoutInvoice: { "10": 0, "8": 0 },
+        unknown: { "10": 0, "8": 0 }
+    };
+
+    // 3. 日別x科目別グリッド
+    // 日付ごとのオブジェクトを作成
+    var daysMap = {};
+    // 月末日を取得
+    var [y, m] = targetMonth.split('-');
+    var lastDay = new Date(y, m, 0).getDate();
+
+    for (var d = 1; d <= lastDay; d++) {
+        var dayStr = targetMonth + '-' + ('0' + d).slice(-2);
+        daysMap[dayStr] = {};
+    }
+
+    var subjects = new Set();
+
+    data.details.forEach(function (det) {
+        var amt = Number(det.amount);
+        var sub = det.subject || '未分類';
+        subjects.add(sub);
+
+        var date = det.usageDate; // yyyy-MM-dd
+        if (!daysMap[date]) daysMap[date] = {};
+        if (!daysMap[date][sub]) daysMap[date][sub] = 0;
+        daysMap[date][sub] += amt;
+
+        // 入出金判定 (簡易的に「入金」という科目があれば収入扱い、それ以外は支出)
+        if (sub === '入金' || sub === '仮払受入') {
+            totalIncome += amt;
+        } else {
+            totalExpense += amt;
+
+            // インボイス集計 (支出のみ)
+            var rate = String(det.taxRate || 10);
+            var reg = det.invoiceReg || '不明';
+            if (reg === 'あり') {
+                invoiceSummary.withInvoice[rate] = (invoiceSummary.withInvoice[rate] || 0) + amt;
+            } else if (reg === 'なし') {
+                invoiceSummary.withoutInvoice[rate] = (invoiceSummary.withoutInvoice[rate] || 0) + amt;
+            } else {
+                invoiceSummary.unknown[rate] = (invoiceSummary.unknown[rate] || 0) + amt;
+            }
+        }
+    });
+
+    // 今日の残高 (全期間の累積が必要だが、今回は月次範囲のみの収支とするか、要件による。
+    // 「残高」は通常、前月繰越 + 当月入金 - 当月出金。
+    // ここでは簡易的に 当月入金 - 当月出金 を残高とする)
+    var balance = totalIncome - totalExpense;
+
+    return {
+        scorecard: {
+            income: totalIncome,
+            expense: totalExpense,
+            balance: balance,
+            todayBalance: balance // ※本来は当日までの集計だが、月次視点では同義もしくは当日フィルタが必要
+        },
+        grid: {
+            days: Object.keys(daysMap).sort(),
+            subjects: Array.from(subjects).sort(),
+            data: daysMap
+        },
+        invoice: invoiceSummary
+    };
+}
+
+/**
+ * 日別(人別)レポート取得
+ * targetDate: 'yyyy-MM' for monthly, 'yyyy-MM-dd' for specific date
+ */
+function api_getDailyReport(targetDate) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var data = getReportData_(targetDate);
+    var userMap = {};
+
+    data.details.forEach(function (det) {
+        // 入金は除外して経費のみ集計
+        if (det.subject === '入金' || det.subject === '仮払受入') return;
+
+        var name = det.applicantName || '不明';
+        if (!userMap[name]) userMap[name] = 0;
+        userMap[name] += Number(det.amount);
+    });
+
+    var list = Object.keys(userMap).map(function (name) {
+        return { name: name, total: userMap[name] };
+    }).sort(function (a, b) { return b.total - a.total; });
+
+    return { list: list };
+}
+
+/**
+ * 共通: レポート用データ収集 (指定月の承認済み・確定済みデータを収集)
+ */
+/**
+ * 共通: レポート用データ収集 (指定月の承認済み・確定済みデータを収集)
+ * targetDate: 'yyyy-MM' per month OR 'yyyy-MM-dd' per day
+ */
+function getReportData_(targetDate) {
+    var headerSheet = getSheet_(SHEET_NAMES.HEADER);
+    var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
+
+    // ヘッダ取得
+    var hLast = headerSheet.getLastRow();
+    if (hLast <= 1) return { details: [] };
+    var hVals = headerSheet.getRange(2, 1, hLast - 1, HEADER_COL.COL_COUNT).getValues();
+
+    var targetAppIds = {}; // appId -> { applicantName }
+
+    // 日付指定フォーマット判定
+    var isMonthly = (targetDate.length === 7); // yyyy-MM
+
+    hVals.forEach(function (row) {
+        var status = row[HEADER_COL.STATUS - 1];
+        // 却下・差し戻し・下書き以外を集計対象とする
+        if (status === STATUS.REJECTED || status === STATUS.RETURNED || status === STATUS.DRAFT) return;
+
+        // ヘッダレベルでは対象候補としてIDをプールするだけにする（詳細は明細の日付で見る）
+        targetAppIds[row[HEADER_COL.APPLICATION_ID - 1]] = {
+            name: row[HEADER_COL.APPLICANT_NAME - 1]
+        };
+    });
+
+    // 明細取得
+    var dLast = detailSheet.getLastRow();
+    if (dLast <= 1) return { details: [] };
+    var dVals = detailSheet.getRange(2, 1, dLast - 1, DETAIL_COL.COL_COUNT).getValues();
+
+    var validDetails = [];
+
+    dVals.forEach(function (row) {
+        var appId = row[DETAIL_COL.APPLICATION_ID - 1];
+        if (!targetAppIds[appId]) return; // 対象外ヘッダ
+
+        var uDate = row[DETAIL_COL.USAGE_DATE - 1];
+        var uObj = new Date(uDate);
+        var uDaily = Utilities.formatDate(uObj, TIMEZONE, 'yyyy-MM-dd');
+        var uMonthly = uDaily.substring(0, 7);
+
+        var isMatch = false;
+        if (isMonthly) {
+            if (uMonthly === targetDate) isMatch = true;
+        } else {
+            if (uDaily === targetDate) isMatch = true;
+        }
+
+        if (isMatch) {
+            validDetails.push({
+                usageDate: uDaily,
+                amount: row[DETAIL_COL.AMOUNT - 1],
+                subject: row[DETAIL_COL.SUBJECT - 1],
+                taxRate: row[DETAIL_COL.TAX_RATE - 1],
+                invoiceReg: row[DETAIL_COL.INVOICE_REG - 1],
+                applicantName: targetAppIds[appId].name
+            });
+        }
+    });
+
+    return { details: validDetails };
+}
+
+/**
+ * 入金登録 (管理者のみ)
+ * date: 'yyyy-MM-dd'
+ * amount: number
+ * memo: string
+ * type: string ('入金', '出金', '調整')
+ */
+function api_registerDeposit(date, amount, memo, type) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var headerSheet = getSheet_(SHEET_NAMES.HEADER);
+    var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
+    var subject = type || '入金';
+
+
+    // ID生成 (DEP-yyyyMMdd-random)
+    var dStr = date.replace(/-/g, '');
+    var rand = Math.floor(Math.random() * 10000).toString();
+    var appId = 'DEP-' + dStr + '-' + rand;
+
+    // ヘッダ登録 (Status: APPROVED)
+    var now = new Date();
+    var hRow = [
+        appId,
+        user.email,
+        '管理者(入金登録)', // Applicant Name
+        user.dept || '管理部',
+        amount,
+        date, // Application Date
+        STATUS.APPROVED, // 自動承認
+        '', // Approver
+        Utilities.formatDate(now, TIMEZONE, 'yyyy/MM/dd HH:mm:ss') // Approved Date
+    ];
+    headerSheet.appendRow(hRow);
+
+    // 明細登録 (Subject: '入金')
+    var detailId = 'D-' + Math.floor(Math.random() * 100000000);
+    var dRow = [
+        detailId,
+        appId,
+        date, // Usage Date
+        amount,
+        'ー', // Vendor
+        subject, // Subject (重要)
+        memo || (subject + '登録'), // Purpose
+        '', // Receipt URL
+        'ー', // Tax Rate
+        'ー'  // Invoice Reg
+    ];
+    detailSheet.appendRow(dRow);
+
+    return { success: true, appId: appId };
 }

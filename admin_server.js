@@ -15,17 +15,27 @@ function getAdminDashboardData() {
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
     var subjectSheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
-    // 1. 科目マスタ取得
-    var subjectList = [];
-    var lastRowSub = subjectSheet.getLastRow();
-    if (lastRowSub > 1) {
-        subjectList = subjectSheet.getRange(2, 1, lastRowSub - 1, 1).getValues().flat().filter(String);
+    // 1. 科目マスタ取得 (共通関数使用)
+    var subjectList = getSubjectMasterWithTax_();
+
+    // 2. ユニークな拠点リストを取得 (ユーザーマスタから)
+    var branchList = [];
+    var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
+    if (sheetUser) {
+        var lastRowU = sheetUser.getLastRow();
+        if (lastRowU > 1) {
+            // F列(6列目)が拠点
+            var uVals = sheetUser.getRange(2, 6, lastRowU - 1, 1).getValues().flat();
+            var bSet = {};
+            uVals.forEach(function (b) { if (b) bSet[b] = true; });
+            branchList = Object.keys(bSet).sort();
+        }
     }
 
-    // 2. 申請中(APPLYING)のヘッダを取得
+    // 3. 申請中(APPLYING)のヘッダを取得
     var pendingList = [];
     var lastRowHead = headerSheet.getLastRow();
-    if (lastRowHead <= 1) return { pendingList: [], subjectList: subjectList };
+    if (lastRowHead <= 1) return { pendingList: [], subjectList: subjectList, branches: branchList };
 
     var headValues = headerSheet.getRange(2, 1, lastRowHead - 1, HEADER_COL.COL_COUNT).getValues();
     var appIds = [];
@@ -57,49 +67,16 @@ function getAdminDashboardData() {
     }
 
     if (appIds.length === 0) {
-        return { pendingList: [], subjectList: subjectList };
+        return { pendingList: [], subjectList: subjectList, branches: branchList };
     }
 
-    // 3. 明細を取得して紐付け
-    var lastRowDet = detailSheet.getLastRow();
-    if (lastRowDet > 1) {
-        var detValues = detailSheet.getRange(2, 1, lastRowDet - 1, DETAIL_COL.COL_COUNT).getValues();
+    // 3. 明細を取得して紐付け (共通関数利用)
+    getDetailsForApps_(appIds, appMap);
 
-        for (var j = 0; j < detValues.length; j++) {
-            var dRow = detValues[j];
-            var dAppId = dRow[DETAIL_COL.APPLICATION_ID - 1];
-
-            if (appMap[dAppId]) {
-                var rUrl = dRow[DETAIL_COL.RECEIPT_URL - 1];
-                var fileId = '';
-                if (rUrl) {
-                    // URLからID抽出 (互換性向上)
-                    var idMatch = rUrl.match(/id=([a-zA-Z0-9_-]+)/) || rUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                    if (idMatch) fileId = idMatch[1];
-
-                    // 複数ある場合は最初の1つ目のIDを取得（画像表示用）
-                    if (!fileId && rUrl.indexOf('\n') !== -1) {
-                        var firstUrl = rUrl.split('\n')[0];
-                        var m2 = firstUrl.match(/id=([a-zA-Z0-9_-]+)/) || firstUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                        if (m2) fileId = m2[1];
-                    }
-                }
-
-                appMap[dAppId].details.push({
-                    detailId: dRow[DETAIL_COL.DETAIL_ID - 1],
-                    usageDate: Utilities.formatDate(new Date(dRow[DETAIL_COL.USAGE_DATE - 1]), TIMEZONE, 'yyyy-MM-dd'),
-                    amount: dRow[DETAIL_COL.AMOUNT - 1],
-                    taxRate: dRow[DETAIL_COL.TAX_RATE - 1],
-                    vendor: dRow[DETAIL_COL.VENDOR - 1],
-                    subject: dRow[DETAIL_COL.SUBJECT - 1],
-                    purpose: dRow[DETAIL_COL.PURPOSE - 1],
-                    invoiceReg: dRow[DETAIL_COL.INVOICE_REG - 1] || '不明', // インボイス登録有無
-                    hasImage: !!fileId,
-                    fileId: fileId
-                });
-            }
-        }
-    }
+    return {
+        pendingList: pendingList,
+        subjectList: subjectList
+    };
 
     return {
         pendingList: pendingList,
@@ -117,74 +94,98 @@ function processApplicationWithEdit(appId, action, details) {
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
 
-    // 1. ヘッダ更新
-    var lastRowHead = headerSheet.getLastRow();
-    var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues(); // ID列のみ取得
-    var rowIndex = -1;
+    // LockService: 排他制御
+    var lock = LockService.getScriptLock();
+    // 最大10秒待機
+    if (lock.tryLock(10000)) {
+        try {
+            // 1. ヘッダ更新
+            var lastRowHead = headerSheet.getLastRow();
+            var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues(); // ID列のみ取得
+            var rowIndex = -1;
 
-    for (var i = 0; i < headData.length; i++) {
-        if (String(headData[i][0]) === String(appId)) {
-            rowIndex = i + 2;
-            break;
-        }
-    }
-
-    if (rowIndex === -1) throw new Error('申請が見つかりません');
-
-    // ステータス更新
-    var newStatus = (action === 'approve') ? STATUS.APPROVED : STATUS.REJECTED;
-    var timestamp = new Date();
-
-    // 更新するセル: [ステータス, 承認者Mail, 承認日時, 却下日時, 差し戻し日時, 差し戻しコメント]
-    // HEADER_COL.STATUS(8) から HEADER_COL.RETURN_COMMENT(13) あたりを更新
-
-    // 個別にセット
-    headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(newStatus);
-    headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
-
-    if (action === 'approve') {
-        headerSheet.getRange(rowIndex, HEADER_COL.APPROVED_AT).setValue(timestamp);
-    } else {
-        headerSheet.getRange(rowIndex, HEADER_COL.REJECTED_AT).setValue(timestamp);
-
-        // 却下メール送信
-        sendRejectionEmail_(rowIndex, appId, user.name);
-        // チャット通知
-        sendChatNotification_('【却下】申請ID: ' + appId + ' が却下されました。');
-    }
-
-    // 2. 明細更新 (details配列の内容でDetailシートを上書き)
-    if (details && details.length > 0) {
-        var lastRowDet = detailSheet.getLastRow();
-        var detIds = detailSheet.getRange(2, DETAIL_COL.DETAIL_ID, lastRowDet - 1, 1).getValues().flat(); // ID列
-
-        // 行特定用マップ
-        var detRowMap = {};
-        for (var k = 0; k < detIds.length; k++) {
-            detRowMap[detIds[k]] = k + 2;
-        }
-
-        var totalAmount = 0;
-
-        details.forEach(function (d) {
-            var rIdx = detRowMap[d.detailId];
-            if (rIdx) {
-                var amt = Number(d.amount);
-                totalAmount += amt;
-
-                // 更新実行
-                detailSheet.getRange(rIdx, DETAIL_COL.USAGE_DATE).setValue(new Date(d.usageDate));
-                detailSheet.getRange(rIdx, DETAIL_COL.AMOUNT).setValue(amt);
-                detailSheet.getRange(rIdx, DETAIL_COL.TAX_RATE).setValue(d.taxRate);
-                detailSheet.getRange(rIdx, DETAIL_COL.VENDOR).setValue(d.vendor);
-                detailSheet.getRange(rIdx, DETAIL_COL.SUBJECT).setValue(d.subject);
-                detailSheet.getRange(rIdx, DETAIL_COL.PURPOSE).setValue(d.purpose);
-                detailSheet.getRange(rIdx, DETAIL_COL.INVOICE_REG).setValue(d.invoiceReg);
+            for (var i = 0; i < headData.length; i++) {
+                if (String(headData[i][0]) === String(appId)) {
+                    rowIndex = i + 2;
+                    break;
+                }
             }
-        });
 
-        // ヘッダの合計金額も再計算して更新
-        headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
+            if (rowIndex === -1) throw new Error('申請が見つかりません');
+
+            // 支払済チェック
+            var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
+            if (currentPayStatus === '支払済') {
+                throw new Error('支払済みの申請は編集・承認・却下できません。支払管理画面で「未払い」に戻してから操作してください。');
+            }
+
+            // ステータス更新
+            var newStatus = (action === 'approve') ? STATUS.APPROVED : STATUS.REJECTED;
+            var timestamp = new Date();
+
+            // 個別にセット
+            headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(newStatus);
+            headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
+
+            if (action === 'approve') {
+                headerSheet.getRange(rowIndex, HEADER_COL.APPROVED_AT).setValue(timestamp);
+            } else {
+                headerSheet.getRange(rowIndex, HEADER_COL.REJECTED_AT).setValue(timestamp);
+
+                // 却下メール送信
+                sendRejectionEmail_(rowIndex, appId, user.name);
+                // チャット通知
+                sendChatNotification_('【却下】申請ID: ' + appId + ' が却下されました。');
+            }
+
+            // 2. 明細更新 (details配列の内容でDetailシートを上書き)
+            if (details && details.length > 0) {
+                var dLastRow = detailSheet.getLastRow();
+                if (dLastRow > 1) {
+                    var dFullRange = detailSheet.getRange(2, 1, dLastRow - 1, DETAIL_COL.COL_COUNT);
+                    var dValues = dFullRange.getValues();
+
+                    // ID列インデックス (0-based)
+                    var idIdx = DETAIL_COL.DETAIL_ID - 1;
+
+                    // 行特定用インデックスマップ (ID -> 0-based row index in dValues)
+                    var dMap = {};
+                    for (var k = 0; k < dValues.length; k++) {
+                        dMap[String(dValues[k][idIdx])] = k;
+                    }
+
+                    var totalAmount = 0;
+                    var modifiedRows = [];
+
+                    details.forEach(function (d) {
+                        var idx = dMap[String(d.detailId)];
+                        if (idx !== undefined) {
+                            var amt = Number(d.amount);
+                            totalAmount += amt;
+
+                            // メモリ上の配列を更新
+                            dValues[idx][DETAIL_COL.USAGE_DATE - 1] = new Date(d.usageDate);
+                            dValues[idx][DETAIL_COL.AMOUNT - 1] = amt;
+                            dValues[idx][DETAIL_COL.TAX_RATE - 1] = d.taxRate;
+                            dValues[idx][DETAIL_COL.VENDOR - 1] = d.vendor;
+                            dValues[idx][DETAIL_COL.SUBJECT - 1] = d.subject;
+                            dValues[idx][DETAIL_COL.PURPOSE - 1] = d.purpose;
+                            dValues[idx][DETAIL_COL.INVOICE_REG - 1] = d.invoiceReg;
+                        }
+                    });
+
+                    // シート全体を一括更新 (パフォーマンス向上)
+                    dFullRange.setValues(dValues);
+
+                    // ヘッダの合計金額も再計算して更新
+                    headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
+                }
+            }
+        } finally {
+            lock.releaseLock();
+        }
+    } else {
+        throw new Error('サーバーが混み合っています。もう一度やり直してください。');
     }
 }
 
@@ -201,47 +202,68 @@ function processReturn(appId, comment, details) {
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
 
-    // ヘッダ検索
-    var lastRowHead = headerSheet.getLastRow();
-    var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues();
-    var rowIndex = -1;
-    for (var i = 0; i < headData.length; i++) {
-        if (String(headData[i][0]) === String(appId)) {
-            rowIndex = i + 2;
-            break;
-        }
-    }
-    if (rowIndex === -1) throw new Error('申請が見つかりません');
-
-    // 更新
-    var timestamp = new Date();
-    headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(STATUS.RETURNED);
-    headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
-    headerSheet.getRange(rowIndex, HEADER_COL.RETURNED_AT).setValue(timestamp);
-    headerSheet.getRange(rowIndex, HEADER_COL.RETURN_COMMENT).setValue(comment);
-
-    // 明細更新 (同様)
-    if (details && details.length > 0) {
-        var lastRowDet = detailSheet.getLastRow();
-        var detIds = detailSheet.getRange(2, DETAIL_COL.DETAIL_ID, lastRowDet - 1, 1).getValues().flat();
-        var detRowMap = {};
-        for (var k = 0; k < detIds.length; k++) detRowMap[detIds[k]] = k + 2;
-        var totalAmount = 0;
-        details.forEach(function (d) {
-            var rIdx = detRowMap[d.detailId];
-            if (rIdx) {
-                var amt = Number(d.amount);
-                totalAmount += amt;
-                detailSheet.getRange(rIdx, DETAIL_COL.USAGE_DATE).setValue(new Date(d.usageDate));
-                detailSheet.getRange(rIdx, DETAIL_COL.AMOUNT).setValue(amt);
-                detailSheet.getRange(rIdx, DETAIL_COL.TAX_RATE).setValue(d.taxRate);
-                detailSheet.getRange(rIdx, DETAIL_COL.VENDOR).setValue(d.vendor);
-                detailSheet.getRange(rIdx, DETAIL_COL.SUBJECT).setValue(d.subject);
-                detailSheet.getRange(rIdx, DETAIL_COL.PURPOSE).setValue(d.purpose);
-                detailSheet.getRange(rIdx, DETAIL_COL.INVOICE_REG).setValue(d.invoiceReg);
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+        try {
+            // ヘッダ検索
+            var lastRowHead = headerSheet.getLastRow();
+            var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues();
+            var rowIndex = -1;
+            for (var i = 0; i < headData.length; i++) {
+                if (String(headData[i][0]) === String(appId)) {
+                    rowIndex = i + 2;
+                    break;
+                }
             }
-        });
-        headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
+            if (rowIndex === -1) throw new Error('申請が見つかりません');
+
+            // 支払済チェック
+            var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
+            if (currentPayStatus === '支払済') {
+                throw new Error('支払済みの申請は差し戻しできません。支払管理画面で「未払い」に戻してから操作してください。');
+            }
+
+            // 更新
+            var timestamp = new Date();
+            headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(STATUS.RETURNED);
+            headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
+            headerSheet.getRange(rowIndex, HEADER_COL.RETURNED_AT).setValue(timestamp);
+            headerSheet.getRange(rowIndex, HEADER_COL.RETURN_COMMENT).setValue(comment);
+
+            // 明細更新 (一括更新版)
+            if (details && details.length > 0) {
+                var dLastRow = detailSheet.getLastRow();
+                if (dLastRow > 1) {
+                    var dFullRange = detailSheet.getRange(2, 1, dLastRow - 1, DETAIL_COL.COL_COUNT);
+                    var dValues = dFullRange.getValues();
+                    var idIdx = DETAIL_COL.DETAIL_ID - 1;
+                    var dMap = {};
+                    for (var k = 0; k < dValues.length; k++) dMap[String(dValues[k][idIdx])] = k;
+
+                    var totalAmount = 0;
+                    details.forEach(function (d) {
+                        var idx = dMap[String(d.detailId)];
+                        if (idx !== undefined) {
+                            var amt = Number(d.amount);
+                            totalAmount += amt;
+                            dValues[idx][DETAIL_COL.USAGE_DATE - 1] = new Date(d.usageDate);
+                            dValues[idx][DETAIL_COL.AMOUNT - 1] = amt;
+                            dValues[idx][DETAIL_COL.TAX_RATE - 1] = d.taxRate;
+                            dValues[idx][DETAIL_COL.VENDOR - 1] = d.vendor;
+                            dValues[idx][DETAIL_COL.SUBJECT - 1] = d.subject;
+                            dValues[idx][DETAIL_COL.PURPOSE - 1] = d.purpose;
+                            dValues[idx][DETAIL_COL.INVOICE_REG - 1] = d.invoiceReg;
+                        }
+                    });
+                    dFullRange.setValues(dValues);
+                    headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
+                }
+            }
+        } finally {
+            lock.releaseLock();
+        }
+    } else {
+        throw new Error('サーバーが混み合っています。もう一度やり直してください。');
     }
 
     // 差し戻しメール送信
@@ -343,11 +365,21 @@ function api_addSubject(name, taxRate, keywords) {
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
-    // 重複チェック
-    var list = sheet.getRange(2, 1, sheet.getLastRow() || 1, 1).getValues().flat().filter(String);
-    if (list.includes(name)) throw new Error('既に存在する科目名です');
 
-    sheet.appendRow([name, taxRate || 10, keywords || '']);
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+        try {
+            // 重複チェック
+            var list = sheet.getRange(2, 1, sheet.getLastRow() || 1, 1).getValues().flat().filter(String);
+            if (list.includes(name)) throw new Error('既に存在する科目名です');
+
+            sheet.appendRow([name, taxRate || 10, keywords || '']);
+        } finally {
+            lock.releaseLock();
+        }
+    } else {
+        throw new Error('サーバーが混み合っています。');
+    }
 
     // リストを返す(Object Array)
     return getSubjectListObject_(sheet);
@@ -361,17 +393,26 @@ function api_updateSubject(oldName, name, taxRate, keywords) {
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
-    var data = sheet.getDataRange().getValues(); // 全データ取得
 
-    // ヘッダ飛ばして検索
-    for (var i = 1; i < data.length; i++) {
-        if (data[i][0] === oldName) {
-            // 更新
-            sheet.getRange(i + 1, 1).setValue(name);
-            sheet.getRange(i + 1, 2).setValue(taxRate);
-            sheet.getRange(i + 1, 3).setValue(keywords);
-            break;
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+        try {
+            var data = sheet.getDataRange().getValues(); // 全データ取得
+            // ヘッダ飛ばして検索
+            for (var i = 1; i < data.length; i++) {
+                if (data[i][0] === oldName) {
+                    // 更新
+                    sheet.getRange(i + 1, 1).setValue(name);
+                    sheet.getRange(i + 1, 2).setValue(taxRate);
+                    sheet.getRange(i + 1, 3).setValue(keywords);
+                    break;
+                }
+            }
+        } finally {
+            lock.releaseLock();
         }
+    } else {
+        throw new Error('サーバーが混み合っています。');
     }
 
     return getSubjectListObject_(sheet);
@@ -385,13 +426,26 @@ function api_deleteSubject(name) {
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
-    var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().flat();
 
-    // 後ろから削除（行ズレ防止）
-    for (var i = values.length - 1; i >= 0; i--) {
-        if (values[i] === name) {
-            sheet.deleteRow(i + 2);
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+        try {
+            // getLastRow() check to prevent error if empty
+            var lastRow = sheet.getLastRow();
+            if (lastRow > 1) {
+                var values = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+                // 後ろから削除（行ズレ防止）
+                for (var i = values.length - 1; i >= 0; i--) {
+                    if (values[i] === name) {
+                        sheet.deleteRow(i + 2);
+                    }
+                }
+            }
+        } finally {
+            lock.releaseLock();
         }
+    } else {
+        throw new Error('サーバーが混み合っています。');
     }
 
     return getSubjectListObject_(sheet);
@@ -410,97 +464,215 @@ function getSubjectListObject_(sheet) {
  * 月次レポート取得
  * targetMonth: 'yyyy-MM'
  */
-function api_getMonthlyReport(targetMonth) {
+/**
+ * 月次レポート取得 (改修版)
+ * targetMonth: 'yyyy-MM'
+ * targetBranch: string (Optional)
+ */
+function api_getMonthlyReport(targetMonth, targetBranch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
+    // 0. 前月繰越計算
+    var carryOverBalance = 0;
+    if (targetMonth) {
+        var allDataBefore = getReportDataBefore_(targetMonth);
+        var coIncome = 0;
+        var coExpense = 0;
+
+        // ユーザーマスタから拠点情報を取得してマップ化 (繰越用)
+        var coBranchMap = {};
+        var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
+        if (sheetUser) {
+            var lastRowU = sheetUser.getLastRow();
+            if (lastRowU > 1) {
+                var uVals = sheetUser.getRange(2, 2, lastRowU - 1, 5).getValues(); // B:Email, F:Branch
+                uVals.forEach(function (r) {
+                    coBranchMap[normalizeEmail_(r[0])] = r[4] || '';
+                });
+            }
+        }
+
+        allDataBefore.details.forEach(function (det) {
+            // 拠点フィルタ (繰越)
+            if (targetBranch) {
+                var email = normalizeEmail_(det.applicantEmail);
+                if (coBranchMap[email] !== targetBranch) return;
+            }
+
+            var amt = Number(det.amount);
+            if (det.subject === '入金' || det.subject === '仮払受入') {
+                coIncome += amt;
+            } else {
+                coExpense += amt;
+            }
+        });
+        carryOverBalance = coIncome - coExpense;
+    }
+
     var data = getReportData_(targetMonth);
 
-    // 1. スコアカード集計 & 2. インボイス集計
-    var totalIncome = 0; // 入金 (科目「入金」または「仮払金」などを想定。今回は「入金」で判定)
+    // ユーザーマスタから拠点情報を取得してマップ化
+    var userBranchMap = {};
+    var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
+    if (sheetUser) {
+        var lastRow = sheetUser.getLastRow();
+        if (lastRow > 1) {
+            // A:ID, B:Email, C:Name, D:Role, E:Manager, F:Branch
+            var uVals = sheetUser.getRange(2, 1, lastRow - 1, 6).getValues();
+            uVals.forEach(function (r) {
+                var email = normalizeEmail_(r[1]);
+                var branch = r[5] || '';
+                if (email) userBranchMap[email] = branch;
+            });
+        }
+    }
+
+    // 1. 集計用変数
+    var totalIncome = 0;
     var totalExpense = 0;
-    var invoiceSummary = {
-        withInvoice: { "10": 0, "8": 0 },
-        withoutInvoice: { "10": 0, "8": 0 },
-        unknown: { "10": 0, "8": 0 }
+
+    // インボイス集計: 全体 + 科目別
+    // 構造: { total: { with: {10:0, 8:0}, ... }, bySubject: { "交通費": { with:..., without:... } } }
+    var invoiceStats = {
+        total: {
+            withInvoice: { "10": 0, "8": 0, "other": 0 },
+            withoutInvoice: { "10": 0, "8": 0, "other": 0 },
+            unknown: { "10": 0, "8": 0, "other": 0 }
+        },
+        bySubject: {}
     };
 
-    // 3. 日別x科目別グリッド
-    // 日付ごとのオブジェクトを作成
+    // 日別集計用
     var daysMap = {};
-    // 月末日を取得
     var [y, m] = targetMonth.split('-');
     var lastDay = new Date(y, m, 0).getDate();
 
+    // 初期化
     for (var d = 1; d <= lastDay; d++) {
         var dayStr = targetMonth + '-' + ('0' + d).slice(-2);
-        daysMap[dayStr] = {};
+        daysMap[dayStr] = {
+            income: 0,
+            expense: 0,
+            subjects: {}
+        };
     }
 
     var subjects = new Set();
 
     data.details.forEach(function (det) {
+        // 拠点フィルタ
+        if (targetBranch) {
+            var email = normalizeEmail_(det.applicantEmail);
+            var uBranch = userBranchMap[email] || '';
+            // マスタに無い場合などは空文字扱い。完全一致で判定
+            if (uBranch !== targetBranch) return;
+        }
+
         var amt = Number(det.amount);
         var sub = det.subject || '未分類';
         subjects.add(sub);
-
         var date = det.usageDate; // yyyy-MM-dd
-        if (!daysMap[date]) daysMap[date] = {};
-        if (!daysMap[date][sub]) daysMap[date][sub] = 0;
-        daysMap[date][sub] += amt;
 
-        // 入出金判定 (簡易的に「入金」という科目があれば収入扱い、それ以外は支出)
+        // 日別集計
+        if (!daysMap[date]) daysMap[date] = { income: 0, expense: 0, subjects: {} }; // 念のため
+        if (!daysMap[date].subjects[sub]) daysMap[date].subjects[sub] = 0;
+        daysMap[date].subjects[sub] += amt;
+
+        // 入出金判定
         if (sub === '入金' || sub === '仮払受入') {
             totalIncome += amt;
+            daysMap[date].income += amt;
         } else {
             totalExpense += amt;
+            daysMap[date].expense += amt;
 
             // インボイス集計 (支出のみ)
             var rate = String(det.taxRate || 10);
+            if (rate !== '10' && rate !== '8') rate = 'other';
+
             var reg = det.invoiceReg || '不明';
-            if (reg === 'あり') {
-                invoiceSummary.withInvoice[rate] = (invoiceSummary.withInvoice[rate] || 0) + amt;
-            } else if (reg === 'なし') {
-                invoiceSummary.withoutInvoice[rate] = (invoiceSummary.withoutInvoice[rate] || 0) + amt;
-            } else {
-                invoiceSummary.unknown[rate] = (invoiceSummary.unknown[rate] || 0) + amt;
+            var cat = 'unknown';
+            if (reg === 'あり') cat = 'withInvoice';
+            else if (reg === 'なし') cat = 'withoutInvoice';
+
+            // 全体集計
+            invoiceStats.total[cat][rate] = (invoiceStats.total[cat][rate] || 0) + amt;
+
+            // 科目別集計
+            if (!invoiceStats.bySubject[sub]) {
+                invoiceStats.bySubject[sub] = {
+                    withInvoice: { "10": 0, "8": 0, "other": 0 },
+                    withoutInvoice: { "10": 0, "8": 0, "other": 0 },
+                    unknown: { "10": 0, "8": 0, "other": 0 }
+                };
             }
+            invoiceStats.bySubject[sub][cat][rate] += amt;
         }
     });
 
-    // 今日の残高 (全期間の累積が必要だが、今回は月次範囲のみの収支とするか、要件による。
-    // 「残高」は通常、前月繰越 + 当月入金 - 当月出金。
-    // ここでは簡易的に 当月入金 - 当月出金 を残高とする)
-    var balance = totalIncome - totalExpense;
+    // 日次残高計算 (running balance)
+    var currentBalance = carryOverBalance; // 繰越からスタート
+    var dayKeys = Object.keys(daysMap).sort();
+
+    dayKeys.forEach(function (day) {
+        var dObj = daysMap[day];
+        var prev = currentBalance;
+        currentBalance = prev + dObj.income - dObj.expense;
+        dObj.balance = currentBalance;
+        dObj.prevBalance = prev;
+    });
 
     return {
+        targetMonth: targetMonth,
+        carryOver: carryOverBalance, // 繰越額
+        totalBalance: currentBalance, // 最終残高
         scorecard: {
             income: totalIncome,
             expense: totalExpense,
-            balance: balance,
-            todayBalance: balance // ※本来は当日までの集計だが、月次視点では同義もしくは当日フィルタが必要
+            balance: totalIncome - totalExpense
         },
         grid: {
-            days: Object.keys(daysMap).sort(),
+            days: dayKeys,
             subjects: Array.from(subjects).sort(),
             data: daysMap
         },
-        invoice: invoiceSummary
+        invoice: invoiceStats
     };
 }
 
 /**
  * 日別(人別)レポート取得
  * targetDate: 'yyyy-MM' for monthly, 'yyyy-MM-dd' for specific date
+ * targetBranch: string (Optional)
  */
-function api_getDailyReport(targetDate) {
+function api_getDailyReport(targetDate, targetBranch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var data = getReportData_(targetDate);
     var userMap = {};
 
+    // 拠点フィルタ用のマップ作成
+    var userBranchMap = {};
+    if (targetBranch) {
+        var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
+        var lastRowU = sheetUser.getLastRow();
+        if (lastRowU > 1) {
+            var uVals = sheetUser.getRange(2, 2, lastRowU - 1, 5).getValues(); // Email(B) 〜 Branch(F)
+            uVals.forEach(function (r) {
+                userBranchMap[normalizeEmail_(r[0])] = r[4] || '';
+            });
+        }
+    }
+
     data.details.forEach(function (det) {
+        // 拠点フィルタ
+        if (targetBranch) {
+            var email = normalizeEmail_(det.applicantEmail);
+            if (userBranchMap[email] !== targetBranch) return;
+        }
+
         // 入金は除外して経費のみ集計
         if (det.subject === '入金' || det.subject === '仮払受入') return;
 
@@ -539,12 +711,14 @@ function getReportData_(targetDate) {
 
     hVals.forEach(function (row) {
         var status = row[HEADER_COL.STATUS - 1];
-        // 却下・差し戻し・下書き以外を集計対象とする
-        if (status === STATUS.REJECTED || status === STATUS.RETURNED || status === STATUS.DRAFT) return;
+        // セキュリティ/精度強化: レポート対象を「承認済」または「経理確定」に限定する
+        // (以前は APPLYING なども含めてしまっていたリスクを解消)
+        if (status !== STATUS.APPROVED && status !== STATUS.FIXED) return;
 
         // ヘッダレベルでは対象候補としてIDをプールするだけにする（詳細は明細の日付で見る）
         targetAppIds[row[HEADER_COL.APPLICATION_ID - 1]] = {
-            name: row[HEADER_COL.APPLICANT_NAME - 1]
+            name: row[HEADER_COL.APPLICANT_NAME - 1],
+            email: row[HEADER_COL.APPLICANT_EMAIL - 1]
         };
     });
 
@@ -578,7 +752,8 @@ function getReportData_(targetDate) {
                 subject: row[DETAIL_COL.SUBJECT - 1],
                 taxRate: row[DETAIL_COL.TAX_RATE - 1],
                 invoiceReg: row[DETAIL_COL.INVOICE_REG - 1],
-                applicantName: targetAppIds[appId].name
+                applicantName: targetAppIds[appId].name,
+                applicantEmail: targetAppIds[appId].email
             });
         }
     });
@@ -592,8 +767,9 @@ function getReportData_(targetDate) {
  * amount: number
  * memo: string
  * type: string ('入金', '出金', '調整')
+ * branch: string (Optional)
  */
-function api_registerDeposit(date, amount, memo, type) {
+function api_registerDeposit(date, amount, memo, type, branch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
@@ -601,42 +777,321 @@ function api_registerDeposit(date, amount, memo, type) {
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
     var subject = type || '入金';
 
-
-    // ID生成 (DEP-yyyyMMdd-random)
+    // ID生成
     var dStr = date.replace(/-/g, '');
     var rand = Math.floor(Math.random() * 10000).toString();
     var appId = 'DEP-' + dStr + '-' + rand;
 
-    // ヘッダ登録 (Status: APPROVED)
-    var now = new Date();
-    var hRow = [
-        appId,
-        user.email,
-        '管理者(入金登録)', // Applicant Name
-        user.dept || '管理部',
-        amount,
-        date, // Application Date
-        STATUS.APPROVED, // 自動承認
-        '', // Approver
-        Utilities.formatDate(now, TIMEZONE, 'yyyy/MM/dd HH:mm:ss') // Approved Date
-    ];
-    headerSheet.appendRow(hRow);
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+        try {
+            // ヘッダ登録 (HEADER_COL の定義に従う)
+            var now = new Date();
+            var hRow = [];
+            hRow[HEADER_COL.APPLICATION_ID - 1] = appId;
+            hRow[HEADER_COL.APPLICATION_DATE - 1] = date;
+            hRow[HEADER_COL.APPLICANT_EMAIL - 1] = user.email;
+            hRow[HEADER_COL.APPLICANT_NAME - 1] = '管理者(' + subject + ')';
+            hRow[HEADER_COL.APPLICANT_DEPT - 1] = branch || '管理部'; // 拠点情報を部署列に流用
+            hRow[HEADER_COL.TOTAL_AMOUNT - 1] = Number(amount);
+            hRow[HEADER_COL.STATUS - 1] = STATUS.APPROVED;
+            hRow[HEADER_COL.APPROVED_AT - 1] = Utilities.formatDate(now, TIMEZONE, 'yyyy/MM/dd HH:mm:ss');
 
-    // 明細登録 (Subject: '入金')
-    var detailId = 'D-' + Math.floor(Math.random() * 100000000);
-    var dRow = [
-        detailId,
-        appId,
-        date, // Usage Date
-        amount,
-        'ー', // Vendor
-        subject, // Subject (重要)
-        memo || (subject + '登録'), // Purpose
-        '', // Receipt URL
-        'ー', // Tax Rate
-        'ー'  // Invoice Reg
-    ];
-    detailSheet.appendRow(dRow);
+            headerSheet.appendRow(hRow);
+
+            // 明細登録 (DETAIL_COL の定義に従う)
+            var detailId = 'D-' + Math.floor(Math.random() * 100000000);
+            var dRow = [];
+            dRow[DETAIL_COL.DETAIL_ID - 1] = detailId;
+            dRow[DETAIL_COL.APPLICATION_ID - 1] = appId;
+            dRow[DETAIL_COL.USAGE_DATE - 1] = date;
+            dRow[DETAIL_COL.AMOUNT - 1] = Number(amount);
+            dRow[DETAIL_COL.VENDOR - 1] = 'ー';
+            dRow[DETAIL_COL.SUBJECT - 1] = subject;
+            dRow[DETAIL_COL.PURPOSE - 1] = memo || (subject + '登録');
+            dRow[DETAIL_COL.TAX_RATE - 1] = 0;
+            dRow[DETAIL_COL.TAX_AMOUNT - 1] = 0;
+
+            detailSheet.appendRow(dRow);
+
+        } finally {
+            lock.releaseLock();
+        }
+    } else {
+        throw new Error('サーバーが混み合っています。再試行してください。');
+    }
 
     return { success: true, appId: appId };
 }
+
+/**
+ * 共通: 特定月より前の全ての承認済みデータを取得 (繰越用)
+ */
+function getReportDataBefore_(targetMonth) {
+    var headerSheet = getSheet_(SHEET_NAMES.HEADER);
+    var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
+
+    var hLast = headerSheet.getLastRow();
+    if (hLast <= 1) return { details: [] };
+    var hVals = headerSheet.getRange(2, 1, hLast - 1, HEADER_COL.COL_COUNT).getValues();
+
+    var targetAppIds = {};
+    hVals.forEach(function (row) {
+        var status = row[HEADER_COL.STATUS - 1];
+        if (status !== STATUS.APPROVED && status !== STATUS.FIXED) return;
+        targetAppIds[row[HEADER_COL.APPLICATION_ID - 1]] = {
+            name: row[HEADER_COL.APPLICANT_NAME - 1],
+            email: row[HEADER_COL.APPLICANT_EMAIL - 1]
+        };
+    });
+
+    var dLast = detailSheet.getLastRow();
+    if (dLast <= 1) return { details: [] };
+    var dVals = detailSheet.getRange(2, 1, dLast - 1, DETAIL_COL.COL_COUNT).getValues();
+
+    var validDetails = [];
+    dVals.forEach(function (row) {
+        var appId = row[DETAIL_COL.APPLICATION_ID - 1];
+        if (!targetAppIds[appId]) return;
+
+        var uDate = row[DETAIL_COL.USAGE_DATE - 1];
+        var uDaily = Utilities.formatDate(new Date(uDate), TIMEZONE, 'yyyy-MM-dd');
+        var uMonthly = uDaily.substring(0, 7);
+
+        // 対象月より「前」か判定
+        if (uMonthly < targetMonth) {
+            validDetails.push({
+                amount: row[DETAIL_COL.AMOUNT - 1],
+                subject: row[DETAIL_COL.SUBJECT - 1],
+                applicantEmail: targetAppIds[appId].email
+            });
+        }
+    });
+
+    return { details: validDetails };
+}
+
+/**
+ * 支払い確認画面用データ取得
+ * 対象: 承認済み(APPROVED) または 却下(REJECTED)
+ * startDate: 'yyyy-MM-dd' (Optional)
+ * endDate: 'yyyy-MM-dd' (Optional)
+ */
+function api_getPaymentList(startDate, endDate) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var headerSheet = getSheet_(SHEET_NAMES.HEADER);
+    var lastRow = headerSheet.getLastRow();
+    if (lastRow <= 1) return [];
+
+    var values = headerSheet.getDataRange().getValues();
+    values.shift();
+
+    var list = [];
+
+    // Parse filtering dates
+    var startObj = startDate ? new Date(startDate) : null;
+    var endObj = endDate ? new Date(endDate) : null;
+    if (startObj) startObj.setHours(0, 0, 0, 0);
+    if (endObj) endObj.setHours(23, 59, 59, 999);
+
+    for (var i = 0; i < values.length; i++) {
+        var row = values[i];
+        var status = String(row[HEADER_COL.STATUS - 1] || '').trim();
+
+        if (status === STATUS.APPLYING || status === STATUS.DRAFT || status === '') continue;
+
+        var dateObj = row[HEADER_COL.APPROVED_AT - 1] || row[HEADER_COL.REJECTED_AT - 1] || row[HEADER_COL.RETURNED_AT - 1] || row[HEADER_COL.APPLICATION_DATE - 1];
+
+        if (!dateObj) continue;
+
+        var d = (dateObj instanceof Date) ? dateObj : new Date(dateObj);
+        if (isNaN(d.getTime())) continue;
+
+        // Date range filtering
+        if (startObj && d < startObj) continue;
+        if (endObj && d > endObj) continue;
+
+        var payStatus = (row.length >= HEADER_COL.PAYMENT_STATUS) ? row[HEADER_COL.PAYMENT_STATUS - 1] : '';
+        if (!payStatus) payStatus = '未払い';
+
+        if (status === STATUS.REJECTED) {
+            // 却下の場合は支払対象外だが履歴には出す
+            payStatus = '-';
+        }
+
+        list.push({
+            appId: row[HEADER_COL.APPLICATION_ID - 1],
+            applicant: row[HEADER_COL.APPLICANT_NAME - 1],
+            totalAmount: row[HEADER_COL.TOTAL_AMOUNT - 1],
+            status: status,
+            approvedAt: Utilities.formatDate(new Date(dateObj), TIMEZONE, 'yyyy/MM/dd'),
+            paymentStatus: payStatus,
+            details: [] // 必要なら詳細取得ロジックを追加(HeavyになるのでOnDemand推奨)
+        });
+    }
+
+
+    var appMap = {};
+    for (var j = 0; j < list.length; j++) {
+        appMap[list[j].appId] = list[j];
+    }
+    var appIds = list.map(function (a) { return a.appId; });
+
+    // 詳細を取得・紐付け
+    getDetailsForApps_(appIds, appMap);
+
+    // 新しい順
+    return list.reverse();
+}
+
+/**
+ * アプリケーションIDのリストに対して詳細データを取得・紐付けする共通関数
+ */
+function getDetailsForApps_(appIds, appMap) {
+    if (!appIds || appIds.length === 0) return;
+
+    var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
+    var lastRowDet = detailSheet.getLastRow();
+    if (lastRowDet <= 1) return;
+
+    // データ量が多い場合はフィルタリングすべきだが、現状は全取得してメモリ上でマッチング
+    // (GASの制限内で動作する前提)
+    var detValues = detailSheet.getRange(2, 1, lastRowDet - 1, DETAIL_COL.COL_COUNT).getValues();
+
+    for (var j = 0; j < detValues.length; j++) {
+        var dRow = detValues[j];
+        var dAppId = dRow[DETAIL_COL.APPLICATION_ID - 1];
+
+        if (appMap[dAppId]) { // 対象の申請のみ処理
+            var rUrl = dRow[DETAIL_COL.RECEIPT_URL - 1];
+            var fileId = '';
+            if (rUrl) {
+                // URLからID抽出 (互換性向上)
+                var idMatch = rUrl.match(/id=([a-zA-Z0-9_-]+)/) || rUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (idMatch) fileId = idMatch[1];
+
+                // 複数ある場合は最初の1つ目のIDを取得（画像表示用）
+                if (!fileId && rUrl.indexOf('\n') !== -1) {
+                    var firstUrl = rUrl.split('\n')[0];
+                    var m2 = firstUrl.match(/id=([a-zA-Z0-9_-]+)/) || firstUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (m2) fileId = m2[1];
+                }
+            }
+
+            // details配列が無ければ初期化 (念のため)
+            if (!appMap[dAppId].details) appMap[dAppId].details = [];
+
+            var usageDateStr = '';
+            try {
+                var dVal = dRow[DETAIL_COL.USAGE_DATE - 1];
+                if (dVal) {
+                    var dObj = (dVal instanceof Date) ? dVal : new Date(dVal);
+                    if (!isNaN(dObj.getTime())) {
+                        usageDateStr = Utilities.formatDate(dObj, TIMEZONE, 'yyyy-MM-dd');
+                    }
+                }
+            } catch (e) {
+                // date parse error, ignore
+            }
+
+            appMap[dAppId].details.push({
+                detailId: dRow[DETAIL_COL.DETAIL_ID - 1],
+                usageDate: usageDateStr, // 失敗時は空文字
+                amount: dRow[DETAIL_COL.AMOUNT - 1],
+                taxRate: dRow[DETAIL_COL.TAX_RATE - 1],
+                vendor: dRow[DETAIL_COL.VENDOR - 1],
+                subject: dRow[DETAIL_COL.SUBJECT - 1],
+                purpose: dRow[DETAIL_COL.PURPOSE - 1],
+                invoiceReg: dRow[DETAIL_COL.INVOICE_REG - 1] || '不明',
+                hasImage: !!fileId,
+                fileId: fileId
+            });
+        }
+    }
+}
+
+/**
+ * 支払いステータス更新
+ * appIds: string[]
+ * status: '支払済' | '未払い'
+ */
+function api_updatePaymentStatus(appIds, newStatus) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var sheet = getSheet_(SHEET_NAMES.HEADER);
+    var lastRow = sheet.getLastRow();
+    if (lastRow <= 1) return { count: 0 };
+
+    var lock = LockService.getScriptLock();
+    if (lock.tryLock(10000)) {
+        try {
+            // A列(ID)取得
+            var ids = sheet.getRange(2, HEADER_COL.APPLICATION_ID, lastRow - 1, 1).getValues().flat().map(String);
+            var targetSet = {};
+            appIds.forEach(function (id) { targetSet[id] = true; });
+            var count = 0; // Initialize count
+
+            for (var i = 0; i < ids.length; i++) {
+                if (targetSet[ids[i]]) {
+                    // ステータス書き込み
+                    // PAYMENT_STATUS カラムが存在するか確認が必要だが、前回のFixでsetup.jsに追加済み
+                    // 万が一列が足りない場合、getHeaderSheet側で自動追加はしていないので、
+                    // ここでsetValueするとエラーになる可能性があるが、setupScriptProperties等で整備前提。
+                    sheet.getRange(i + 2, HEADER_COL.PAYMENT_STATUS).setValue(newStatus);
+                    count++;
+                }
+            }
+        } finally {
+            lock.releaseLock();
+        }
+    } else {
+        throw new Error('サーバーが混み合っています。');
+    }
+    return { count: count };
+}
+
+/**
+ * 申請の詳細(明細)を取得するAPI (History用)
+ * Totalクリックで内訳表示用
+ */
+function api_getAppDetailsForModal(appId) {
+    var user = getCurrentUserInfo();
+    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+
+    var result = api_getApplication(appId); // app_server.gsの既存関数を流用
+    return result.items || [];
+}
+
+/**
+ * 画像データ一括取得
+ * fileIds: string[]
+ * return: { id: base64, ... }
+ */
+function api_getImagesBatch(fileIds) {
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) return {};
+
+    var result = {};
+    // ユニーク化
+    var uniqueIds = fileIds.filter(function (x, i, self) {
+        return self.indexOf(x) === i && x;
+    });
+
+    uniqueIds.forEach(function (id) {
+        try {
+            var file = DriveApp.getFileById(id);
+            var blob = file.getBlob();
+            var b64 = Utilities.base64Encode(blob.getBytes());
+            var mime = blob.getContentType();
+            result[id] = 'data:' + mime + ';base64,' + b64;
+        } catch (e) {
+            Logger.log('Image Batch Error (' + id + '): ' + e);
+            result[id] = null; // エラー時はnullか空文字
+        }
+    });
+    return result;
+}
+
+

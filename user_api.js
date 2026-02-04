@@ -39,24 +39,7 @@ function getInitData() {
 }
 
 /**
- * 科目マスタ（税率情報付き）を取得（内部関数）
- */
-function getSubjectMasterWithTax_() {
-  var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
-  var lastRow = sheet.getLastRow();
-  if (lastRow <= 1) return [];
-  var values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
-  return values.map(function(r) {
-    return {
-      name: r[0],
-      taxRate: Number(r[1]) || 10,
-      keywords: r[2] || ''
-    };
-  }).filter(function(item) { return item.name; });
-}
-
-/**
- * ★修正: 権限に応じてユーザーリストを絞り込む
+ * 権限に応じてユーザーリストを絞り込む
  */
 function getApplicantList(requestingUser) {
   // 引数がない場合の保険
@@ -64,12 +47,12 @@ function getApplicantList(requestingUser) {
 
   var sheet = getSheet_(SHEET_NAMES.USER_MASTER);
   var lastRow = sheet.getLastRow();
-  
+
   if (lastRow <= 1) return [];
 
-  // A列(ID) 〜 C列(氏名) までを取得
-  var values = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
-  
+  // A列(ID) 〜 F列(拠点) までを取得
+  var values = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
+
   var list = [];
   var isAdmin = (requestingUser.role === 'ADMIN');
   var myEmail = normalizeEmail_(requestingUser.email);
@@ -79,7 +62,7 @@ function getApplicantList(requestingUser) {
     var email = values[i][1]; // B列
     var name = values[i][2];  // C列
     var rowEmail = normalizeEmail_(email);
-    
+
     // ★ここがフィルターロジック
     // 「管理者である」または「自分のメールアドレスと一致する」場合のみリストに入れる
     if (isAdmin || rowEmail === myEmail) {
@@ -87,7 +70,8 @@ function getApplicantList(requestingUser) {
         list.push({
           id: String(id),
           email: rowEmail,
-          name: String(name)
+          name: String(name),
+          branch: values[i][5] || '' // ★追加: 拠点
         });
       }
     }
@@ -101,7 +85,7 @@ function getApplicantList(requestingUser) {
 function findUserById_(targetId) {
   var values = getUserMasterData_();
   if (!values) return null;
-  
+
   var target = String(targetId);
 
   for (var i = 0; i < values.length; i++) {
@@ -139,8 +123,8 @@ function getUserMasterData_() {
   if (!sheet) return null;
   var lastRow = sheet.getLastRow();
   if (lastRow <= 1) return null;
-  
-  return sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+
+  return sheet.getRange(2, 1, lastRow - 1, 6).getValues();
 }
 
 /**
@@ -151,7 +135,8 @@ function mapUserRow_(row) {
     id: row[0],
     email: row[1],
     name: row[2],
-    role: row[3],
-    managerEmail: row[4]
+    role: String(row[3] || '').trim().toUpperCase(), // ★正規化: 大文字に統一
+    managerEmail: row[4],
+    branch: row[5] || '' // ★追加: 拠点
   };
 }

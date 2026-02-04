@@ -61,8 +61,7 @@
     /* アプリ全体レイアウト */
     .app-root {
       width: 100%;
-      min-height: 100%;
-      /* height: 100%; */
+      height: 100%;
       display: flex;
       flex-direction: column;
       padding-top: var(--safe-top);
@@ -1086,7 +1085,7 @@
       position: fixed;
       inset: 0;
       background: rgba(255, 255, 255, 0.9);
-      z-index: 200;
+      z-index: 3000;
       display: none;
       justify-content: center;
       align-items: center;
@@ -1120,7 +1119,7 @@
       opacity: 0;
       transition: 0.3s;
       pointer-events: none;
-      z-index: 300;
+      z-index: 2000;
       font-weight: bold;
       font-size: 0.9rem;
       box-shadow: var(--shadow-lg);
@@ -1141,7 +1140,7 @@
       padding: 20px;
       border-radius: 20px;
       box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-      z-index: 350;
+      z-index: 1100;
       width: 90%;
       max-width: 340px;
       display: none;
@@ -1613,6 +1612,11 @@
               <span class="ml-text">日別集計</span>
               <span class="ml-arrow">&gt;</span>
             </button>
+            <button class="menu-list-item" onclick="switchView('paymentView'); loadPaymentList();">
+              <span class="ml-icon">💸</span>
+              <span class="ml-text">支払い・履歴</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
             <button class="menu-list-item" onclick="openDepositModal()">
               <span class="ml-icon">💰</span>
               <span class="ml-text">入金・調整登録</span>
@@ -1635,36 +1639,43 @@
 
 
     <!-- 管理者：月次レポート画面 -->
-    <div id="reportMonthView" class="view-section" style="background: #f8fafc; overflow-y: auto;">
+    <div id="reportMonthView" class="view-section" style="background: #f8fafc;">
       <header style="position:sticky; top:0;">
         <button onclick="switchView('menuView')"
           style="background:none; border:none; color:var(--primary); font-size:1.2rem; font-weight:bold;">&lt;
           メニュー</button>
         <h1 style="font-size:1.2rem; margin-left:10px;">月次レポート</h1>
       </header>
-      <div style="padding:20px; padding-bottom:100px;">
-        <div style="display:flex; justify-content:center; margin-bottom:20px;">
-          <input type="month" id="reportMonthPicker" style="font-size:1.2rem; padding:8px;"
+      <div style="padding:20px; padding-bottom:100px; flex: 1; overflow-y: auto;">
+        <div style="display:flex; justify-content:center; margin-bottom:20px; gap:10px; align-items:center;">
+          <input type="month" id="reportMonthPicker"
+            style="font-size:1.1rem; padding:8px; border-radius:8px; border:1px solid #e2e8f0;"
             onchange="loadMonthlyReport()">
+          <select id="reportBranchFilter"
+            style="font-size:1.1rem; padding:8px; border-radius:8px; border:1px solid #e2e8f0; max-width:140px;"
+            onchange="loadMonthlyReport()">
+            <option value="">全拠点</option>
+          </select>
+
         </div>
 
         <!-- スコアカード -->
         <div class="score-grid">
           <div class="score-card sc-blue">
-            <div class="sc-label">入金</div>
+            <div class="sc-label">前月繰越</div>
+            <div class="sc-val" id="repCarry">0</div>
+          </div>
+          <div class="score-card sc-blue">
+            <div class="sc-label">当月入金</div>
             <div class="sc-val" id="repInc">0</div>
           </div>
           <div class="score-card sc-red">
-            <div class="sc-label">出金</div>
+            <div class="sc-label">当月出金</div>
             <div class="sc-val" id="repExp">0</div>
           </div>
           <div class="score-card sc-green">
-            <div class="sc-label">残高</div>
+            <div class="sc-label">最終残高</div>
             <div class="sc-val" id="repBal">0</div>
-          </div>
-          <div class="score-card sc-orange">
-            <div class="sc-label">今日の残高</div>
-            <div class="sc-val" id="repToday">0</div>
           </div>
         </div>
 
@@ -1692,17 +1703,23 @@
     </div>
 
     <!-- 管理者：日別(人別)レポート画面 -->
-    <div id="reportDailyView" class="view-section" style="background: #f8fafc; overflow-y: auto;">
+    <div id="reportDailyView" class="view-section" style="background: #f8fafc;">
       <header style="position:sticky; top:0;">
         <button onclick="switchView('menuView')"
           style="background:none; border:none; color:var(--primary); font-size:1.2rem; font-weight:bold;">&lt;
           メニュー</button>
         <h1 style="font-size:1.2rem; margin-left:10px;">申請者別集計</h1>
       </header>
-      <div style="padding:20px; padding-bottom:100px;">
-        <div style="display:flex; justify-content:center; margin-bottom:20px;">
-          <input type="month" id="dailyReportMonthPicker" style="font-size:1.2rem; padding:8px;"
+      <div style="padding:20px; padding-bottom:100px; flex: 1; overflow-y: auto;">
+        <div style="display:flex; justify-content:center; margin-bottom:20px; gap:10px; align-items:center;">
+          <input type="month" id="dailyReportMonthPicker"
+            style="font-size:1.1rem; padding:8px; border-radius:8px; border:1px solid #e2e8f0;"
             onchange="loadDailyReport()">
+          <select id="dailyReportBranchFilter"
+            style="font-size:1.1rem; padding:8px; border-radius:8px; border:1px solid #e2e8f0; max-width:140px;"
+            onchange="loadDailyReport()">
+            <option value="">全拠点</option>
+          </select>
         </div>
         <div id="dailyPersonList" style="display:flex; flex-direction:column; gap:12px;"></div>
       </div>
@@ -1815,6 +1832,66 @@
       </main>
     </div>
 
+    <!-- 支払い管理画面 -->
+    <div id="paymentView" class="view-section" style="background:#f8fafc;">
+      <header style="position:sticky; top:0;">
+        <button onclick="switchView('menuView')"
+          style="background:none; border:none; color:var(--primary); font-size:1.2rem; font-weight:bold;">&lt;
+          メニュー</button>
+        <h1 style="font-size:1.2rem; margin-left:10px;">支払い・履歴</h1>
+      </header>
+      <div style="padding:20px; padding-bottom:100px; flex: 1; overflow-y: auto;">
+        <!-- フィルターエリア -->
+        <div
+          style="display:flex; flex-wrap:wrap; gap:10px; justify-content:center; align-items:center; margin-bottom:16px;">
+          <div
+            style="display:flex; align-items:center; gap:4px; background:white; padding:4px 12px; border-radius:12px; border:1px solid #cbd5e1; box-shadow:0 2px 6px rgba(0,0,0,0.05);">
+            <span style="font-size:0.8rem; font-weight:bold; color:#64748b;">期間</span>
+            <input type="date" id="paymentStartDatePicker"
+              style="border:none; outline:none; font-size:1rem; padding:4px;" onchange="loadPaymentList()">
+            <span style="color:#cbd5e1;">〜</span>
+            <input type="date" id="paymentEndDatePicker" style="border:none; outline:none; font-size:1rem; padding:4px;"
+              onchange="loadPaymentList()">
+          </div>
+          <select id="paymentApplicantFilter"
+            style="padding:8px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1; min-width:150px;"
+            onchange="filterPaymentList()">
+            <option value="">全員</option>
+            <!-- JSで動的に追加 -->
+          </select>
+          <select id="paymentStatusFilter"
+            style="padding:8px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1;"
+            onchange="filterPaymentList()">
+            <option value="">全ステータス</option>
+            <option value="未払い">未払いのみ</option>
+            <option value="支払済">支払済のみ</option>
+          </select>
+        </div>
+        <!-- 合計表示エリア -->
+        <div id="paymentSummaryArea"
+          style="background:linear-gradient(135deg, #3b82f6, #1d4ed8); color:white; padding:16px; border-radius:12px; margin-bottom:16px; display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:0.9rem; opacity:0.8;">絞込結果</div>
+              <div id="paymentSummaryLabel" style="font-size:1rem; font-weight:bold;">-</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:0.9rem; opacity:0.8;">合計金額</div>
+              <div id="paymentSummaryTotal" style="font-size:1.5rem; font-weight:bold;">¥0</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:16px; margin-top:12px; font-size:0.9rem;">
+            <div><span style="opacity:0.8;">未払い:</span> <span id="paymentSummaryUnpaid">¥0</span></div>
+            <div><span style="opacity:0.8;">支払済:</span> <span id="paymentSummaryPaid">¥0</span></div>
+            <div><span style="opacity:0.8;">件数:</span> <span id="paymentSummaryCount">0</span>件</div>
+          </div>
+        </div>
+        <div id="paymentListContainer" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- JSで描画 -->
+        </div>
+      </div>
+    </div>
+
     <!-- 入金登録モーダル -->
     <div id="depositModal" class="master-modal">
       <div class="master-box" style="width: 90%; max-width: 400px; padding:24px;">
@@ -1840,6 +1917,22 @@
           <label>金額 (円)</label>
           <input type="number" id="depAmt" placeholder="0"
             style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+        </div>
+
+        <div class="input-group">
+          <label>拠点 (指定なしで全拠点扱い)</label>
+          <select id="depBranch"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+            <option value="">指定なし</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <label>拠点 (指定なしで全拠点扱い)</label>
+          <select id="depBranch"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+            <option value="">指定なし</option>
+          </select>
         </div>
 
         <div class="input-group">
@@ -1884,6 +1977,23 @@
         <div id="subjectListDiv" class="master-list"></div>
         <button onclick="closeSubjectMaster()"
           style="margin-top:16px; width:100%; padding:12px; background:#f1f5f9; border:none; border-radius:8px; font-weight:bold; color:#475569;">閉じる</button>
+      </div>
+    </div>
+
+    <!-- History Edit Modal for Re-judging -->
+    <div id="historyEditModal" class="master-modal" style="z-index: 950;">
+      <div class="master-box"
+        style="width: 95%; max-width: 600px; max-height: 90vh; display:flex; flex-direction:column; padding:0; overflow:hidden;">
+        <div
+          style="padding:16px; background:#f8fafc; border-bottom:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0; color:#334155;">詳細・修正 (再判定)</h3>
+          <button onclick="closeHistoryEdit()"
+            style="border:none; background:none; font-size:1.5rem; color:#64748b; cursor:pointer;">&times;</button>
+        </div>
+        <div id="historyEditContent"
+          style="padding:16px; overflow-y:auto; flex:1; background:#ffffff; min-height: 300px;">
+          <!-- Admin Card will be injected here -->
+        </div>
       </div>
     </div>
 
@@ -1995,6 +2105,7 @@
     let pendingAppId = null;
     let pendingAction = null;
     let allPendingList = []; // フィルター用の全データ保存
+    let lastPaymentList = []; // 支払い管理画面のデータを保持
 
     window.onload = function () {
       google.script.run.withSuccessHandler(initData).getInitData();
@@ -2023,6 +2134,7 @@
 
       // 科目マスタ（税率情報付き）を保存
       subjectMasterWithTax = data.subjectMaster || [];
+      subjectMaster = (data.subjectMaster || []).map(s => s.name);
 
       // 今月/今日を初期値にセット
       const now = new Date();
@@ -2074,9 +2186,9 @@
         document.documentElement.style.overflowY = 'hidden';
         document.body.style.overflowY = 'hidden';
         document.body.style.height = '100dvh';
-      } else if (viewId === 'adminView') {
+      } else if (viewId === 'adminView' || viewId === 'paymentView') {
         document.getElementById('navMenu').classList.add('active');
-        // Admin Mode: Global Scroll
+        // Admin Mode & Payment View: Global Scroll
         document.documentElement.style.overflowY = 'auto';
         document.body.style.overflowY = 'auto';
         document.body.style.height = 'auto';
@@ -2113,6 +2225,13 @@
           listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">履歴はありません</div>';
           return;
         }
+
+        // 画像一括取得用IDリスト
+        const allFileIds = [];
+        list.forEach(item => {
+          if (item.firstImageId) allFileIds.push(item.firstImageId);
+        });
+
         listEl.innerHTML = list.map(item => {
           let stClass = 'st-apply';
           if (item.statusLabel === '承認済' || item.statusLabel === '経理確定') stClass = 'st-ok';
@@ -2124,9 +2243,8 @@
           if (item.firstImageId) {
             const imgId = 'h-img-' + item.applicationId;
             thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; overflow:hidden; background:#f1f5f9; margin-right:12px; flex-shrink:0; cursor:pointer;" onclick="zoomImage('${imgId}')">
-                <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;">
+                <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" data-file-id="${item.firstImageId}" src="">
              </div>`;
-            setTimeout(() => loadOneImage(item.firstImageId, imgId), 10);
           } else {
             thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#cbd5e1; margin-right:12px; flex-shrink:0;">
                 <span>📷</span>
@@ -2155,6 +2273,21 @@
             </div>
           `;
         }).join('');
+
+        // 一括画像ロード実行
+        if (allFileIds.length > 0) {
+          google.script.run.withSuccessHandler(imgMap => {
+            Object.keys(imgMap).forEach(fid => {
+              const b64 = imgMap[fid];
+              const targets = document.querySelectorAll(`img[data-file-id="${fid}"]`);
+              targets.forEach(img => {
+                if (b64) img.src = b64;
+                else img.parentNode.innerHTML = '<span style="font-size:0.6rem; color:red;">x</span>';
+              });
+            });
+          }).api_getImagesBatch(allFileIds);
+        }
+
       }).withFailureHandler(e => {
         listEl.innerHTML = '<div style="color:red; text-align:center;">読み込み失敗</div>';
         showToast('エラー: ' + e.message, 'error');
@@ -2190,60 +2323,87 @@
         renderMonthlyReport(res);
       }).withFailureHandler(e => {
         showToast('レポート取得失敗: ' + e.message, 'error');
-      }).api_getMonthlyReport(m);
+      }).api_getMonthlyReport(m, document.getElementById('reportBranchFilter').value);
     }
 
     function renderMonthlyReport(data) {
       // スコアカード
       const sc = data.scorecard;
+      document.getElementById('repCarry').innerText = '¥' + data.carryOver.toLocaleString();
       document.getElementById('repInc').innerText = '¥' + sc.income.toLocaleString();
       document.getElementById('repExp').innerText = '¥' + sc.expense.toLocaleString();
-      document.getElementById('repBal').innerText = '¥' + sc.balance.toLocaleString();
-      document.getElementById('repToday').innerText = '¥' + sc.todayBalance.toLocaleString();
+      document.getElementById('repBal').innerText = '¥' + data.totalBalance.toLocaleString();
 
       // グリッド
       const grid = data.grid;
       const tbl = document.getElementById('monthlyGrid');
       let thHtml = '<thead><tr><th>日付</th>';
       grid.subjects.forEach(s => thHtml += `<th>${s}</th>`);
-      thHtml += '<th>計</th></tr></thead>';
+      thHtml += '<th>入金</th><th>出金</th><th>残高</th></tr></thead>'; // 残高列追加
 
       let tbHtml = '<tbody>';
       grid.days.forEach(day => {
-        // 日付ラベル (2024-01-01 -> 1/1)
+        // 日付ラベル
         const parts = day.split('-');
         const dLabel = `${Number(parts[1])}/${Number(parts[2])}`;
         let rowHtml = `<tr><td>${dLabel}</td>`;
-        let rowSum = 0;
+        let dData = grid.data[day];
+
         grid.subjects.forEach(sub => {
-          const val = grid.data[day][sub] || 0;
-          rowSum += val;
+          const val = dData.subjects[sub] || 0;
           rowHtml += `<td style="color:${val === 0 ? '#cbd5e1' : '#0f172a'}">¥${val.toLocaleString()}</td>`;
         });
-        rowHtml += `<td style="font-weight:bold;">¥${rowSum.toLocaleString()}</td></tr>`;
+
+        // 入金・出金・残高
+        rowHtml += `<td style="color:#059669; font-weight:bold;">¥${dData.income.toLocaleString()}</td>`;
+        rowHtml += `<td style="color:#dc2626; font-weight:bold;">¥${dData.expense.toLocaleString()}</td>`;
+        rowHtml += `<td style="font-weight:900;">¥${dData.balance.toLocaleString()}</td>`;
+
+        rowHtml += `</tr>`;
         tbHtml += rowHtml;
       });
       tbHtml += '</tbody>';
       tbl.innerHTML = thHtml + tbHtml;
 
-      // インボイスサマリ
+      // インボイスサマリ (全体 + 科目別)
       const invBody = document.getElementById('invoiceBody');
       const inv = data.invoice;
       let invHtml = '';
 
-      const renderRow = (label, obj) => {
+      // --- 全体 ---
+      invHtml += '<tr style="background:#f1f5f9;"><td colspan="4" style="font-weight:bold; text-align:left;">▼ 全体集計</td></tr>';
+
+      const renderRow = (label, obj, prefix = '') => {
         let h = '';
         Object.keys(obj).forEach(rate => {
           if (obj[rate] > 0) {
-            h += `<tr><td>${label}</td><td>${rate}%</td><td style="font-weight:bold;">¥${obj[rate].toLocaleString()}</td></tr>`;
+            h += `<tr><td style="text-align:left;">${prefix}${label}</td><td>${rate}%</td><td style="font-weight:bold;">¥${obj[rate].toLocaleString()}</td></tr>`;
           }
         });
         return h;
       };
 
-      invHtml += renderRow('あり', inv.withInvoice);
-      invHtml += renderRow('なし', inv.withoutInvoice);
-      invHtml += renderRow('不明', inv.unknown);
+      invHtml += renderRow('適格(あり)', inv.total.withInvoice);
+      invHtml += renderRow('適格(なし)', inv.total.withoutInvoice);
+      invHtml += renderRow('不明', inv.total.unknown);
+
+      // --- 科目別 ---
+      if (inv.bySubject) {
+        Object.keys(inv.bySubject).sort().forEach(sub => {
+          const sObj = inv.bySubject[sub];
+          let hasData = false;
+          ['withInvoice', 'withoutInvoice', 'unknown'].forEach(k => {
+            Object.values(sObj[k]).forEach(v => { if (v > 0) hasData = true; });
+          });
+
+          if (hasData) {
+            invHtml += `<tr style="background:#f8fafc;"><td colspan="4" style="font-weight:bold; text-align:left; color:#1e293b;">▼ ${sub}</td></tr>`;
+            invHtml += renderRow('適格(あり)', sObj.withInvoice, '　');
+            invHtml += renderRow('適格(なし)', sObj.withoutInvoice, '　');
+            invHtml += renderRow('不明', sObj.unknown, '　');
+          }
+        });
+      }
 
       if (invHtml === '') invHtml = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">データなし</td></tr>';
       invBody.innerHTML = invHtml;
@@ -2252,6 +2412,7 @@
     function loadDailyReport() {
       const m = document.getElementById('dailyReportMonthPicker').value;
       if (!m) return;
+      const b = document.getElementById('dailyReportBranchFilter') ? document.getElementById('dailyReportBranchFilter').value : '';
       const el = document.getElementById('dailyPersonList');
       el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
 
@@ -2269,7 +2430,7 @@
       }).withFailureHandler(e => {
         el.innerHTML = 'エラー';
         showToast(e.message, 'error');
-      }).api_getDailyReport(m);
+      }).api_getDailyReport(m, b);
     }
     function normalize(s) { return String(s || '').trim().toLowerCase(); }
 
@@ -2583,9 +2744,6 @@
 
     function loadAdminData() {
       showLoad('データ取得中...');
-
-
-
       google.script.run.withSuccessHandler(res => {
         hideLoad();
         // res.subjectList は Object Array ({name, taxRate...})
@@ -2596,90 +2754,105 @@
 
         allPendingList = res.pendingList;
         populateApplicantFilter(res.pendingList);
+        populateBranchFilter(res.branches || []); // ★動的に拠点フィルタを更新
         renderAdminCards(res.pendingList);
       }).withFailureHandler(e => {
         hideLoad(); showToast('取得失敗: ' + e.message, 'error');
       }).getAdminDashboardData();
     }
 
-    function renderAdminCards(list) {
-      const con = document.getElementById('cardContainer');
-      con.innerHTML = '';
-      if (list.length === 0) {
-        con.innerHTML = `
-        <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
-          <div style="font-size:3rem; margin-bottom:16px;">✅</div>
-          <div>承認待ちの申請はありません</div>
-          <div style="font-size:1rem; margin-top:8px; opacity:0.6;">全ての申請が処理済みです</div>
-        </div>
-      `;
-        return;
-      }
-
-      // 重複チェック用のデータを準備
-      const duplicateMap = {};
-      list.forEach(app => {
-        app.details.forEach(detail => {
-          const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
-          if (!duplicateMap[key]) {
-            duplicateMap[key] = [];
-          }
-          duplicateMap[key].push({ appId: app.appId, detailId: detail.detailId });
+    /**
+     * 各種レポート画面の拠点フィルタを生成
+     */
+    function populateBranchFilter(branches) {
+      const ids = ['reportBranchFilter', 'dailyReportBranchFilter', 'depBranch'];
+      ids.forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const currentVal = sel.value;
+        sel.innerHTML = (id === 'depBranch' ? '<option value="">指定なし</option>' : '<option value="">全拠点</option>');
+        branches.forEach(b => {
+          const op = document.createElement('option');
+          op.value = b; op.text = b;
+          sel.appendChild(op);
         });
+        sel.value = currentVal;
+      });
+    }
+
+    // XSS対策: HTMLエスケープ関数
+    function escapeHtml(str) {
+      if (typeof str !== 'string') return str;
+      return str.replace(/[&<>"']/g, function (match) {
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;'
+        }[match];
+      });
+    }
+
+    // 共通カード生成関数 (AdminCardとPaymentCardで利用)
+    function createAdminCardElement(app, duplicateMap) {
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      card.id = 'card-' + app.appId;
+
+      const hasDuplicates = app.details.some(detail => {
+        const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
+        return duplicateMap && duplicateMap[key] && duplicateMap[key].length > 1;
       });
 
-      list.forEach(app => {
-        const card = document.createElement('div');
-        card.className = 'admin-card';
-        card.id = 'card-' + app.appId;
+      if (hasDuplicates) {
+        card.classList.add('duplicate-warning');
+      }
 
-        // この申請に重複がある明細があるかチェック
-        const hasDuplicates = app.details.some(detail => {
-          const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
-          return duplicateMap[key] && duplicateMap[key].length > 1;
-        });
+      const safeApplicant = escapeHtml(app.applicant);
+      const safeDept = escapeHtml(app.dept || '-');
+      const safeDate = escapeHtml(app.date || app.approvedAt);
 
-        if (hasDuplicates) {
-          card.classList.add('duplicate-warning');
-        }
-
-        const head = `
+      const head = `
         <div class="ac-header">
           <div>
-            <div class="ac-user">${app.applicant} <span class="ac-dept">${app.dept || '-'}</span></div>
-            <div style="font-size:0.8rem; color:#64748b;">${app.date}</div>
+            <div class="ac-user">${safeApplicant} <span class="ac-dept">${safeDept}</span></div>
+            <div style="font-size:0.8rem; color:#64748b;">${safeDate}</div>
           </div>
           <div class="ac-total">¥${Number(app.totalAmount).toLocaleString()}</div>
         </div>
       `;
 
-        let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
-        app.details.forEach(d => {
-          // 科目のdefault optionを追加
-          let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
-            subjectMaster.map(s => `<option value="${s}" ${s === d.subject ? 'selected' : ''}>${s}</option>`).join('');
+      let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
+      app.details.forEach(d => {
+        let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
+          subjectMaster.map(s => {
+            const safeS = escapeHtml(s);
+            return `<option value="${safeS}" ${s === d.subject ? 'selected' : ''}>${safeS}</option>`;
+          }).join('');
 
-          const imgId = `img-${d.detailId}`;
-          if (d.hasImage) loadOneImage(d.fileId, imgId);
+        const imgId = `img-${d.detailId}`;
+        const detailKey = `${app.applicant}_${d.vendor}_${d.amount}`;
+        const isDuplicate = duplicateMap && duplicateMap[detailKey] && duplicateMap[detailKey].length > 1;
 
-          // この明細が重複しているかチェック
-          const detailKey = `${app.applicant}_${d.vendor}_${d.amount}`;
-          const isDuplicate = duplicateMap[detailKey] && duplicateMap[detailKey].length > 1;
+        const invOpts = ['あり', 'なし', '不明'].map(v =>
+          `<option value="${v}" ${v === (d.invoiceReg || '不明') ? 'selected' : ''}>${v}</option>`
+        ).join('');
 
-          const invOpts = ['あり', 'なし', '不明'].map(v =>
-            `<option value="${v}" ${v === (d.invoiceReg || '不明') ? 'selected' : ''}>${v}</option>`
-          ).join('');
+        const taxOpts = [10, 8].map(t =>
+          `<option value="${t}" ${t === (d.taxRate || 10) ? 'selected' : ''}>${t}%</option>`
+        ).join('');
 
-          const taxOpts = [10, 8].map(t =>
-            `<option value="${t}" ${t === (d.taxRate || 10) ? 'selected' : ''}>${t}%</option>`
-          ).join('');
+        const safeVendor = escapeHtml(d.vendor || '');
+        const safePurpose = escapeHtml(d.purpose || '');
 
-          bodyHtml += `
+        bodyHtml += `
           <div class="detail-item" id="det-${d.detailId}" ${isDuplicate ? 'style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444; padding: 12px 0 12px 12px; box-sizing: border-box;"' : ''}>
             ${isDuplicate ? '<div style="font-size: 0.8rem; color: #dc2626; font-weight: 700; margin-bottom: 8px;">⚠️ 重複の可能性があります</div>' : ''}
             <div class="d-row">
               <div class="d-thumb-box" onclick="zoomImage('${imgId}')">
-                <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" src="">
+                <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" src="" data-file-id="${d.fileId || ''}">
+                ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
               </div>
               <div class="d-inputs">
                 <div class="input-group-compact span-full">
@@ -2688,7 +2861,7 @@
                 </div>
                 <div class="input-group-compact span-full">
                   <label>店名</label>
-                  <input type="text" class="d-vendor" value="${d.vendor}" placeholder="店名">
+                  <input type="text" class="d-vendor" value="${safeVendor}" placeholder="店名">
                 </div>
                 <div class="input-group-compact">
                   <label>金額（円）</label>
@@ -2708,43 +2881,100 @@
                 </div>
                 <div class="input-group-compact span-full">
                   <label>備考・利用目的</label>
-                  <textarea class="d-purpose" placeholder="会議費、接待など" rows="1">${d.purpose || ''}</textarea>
+                  <textarea class="d-purpose" placeholder="会議費、接待など" rows="1">${safePurpose}</textarea>
                 </div>
               </div>
             </div>
           </div>
-          
+        `;
+      });
+      bodyHtml += '</div>';
+
+      card.innerHTML = head + bodyHtml;
+
+      const foot = document.createElement('div');
+      foot.className = 'ac-footer';
+
+      const btnRj = document.createElement('button');
+      btnRj.className = 'btn-rj';
+      btnRj.innerText = '却下';
+      btnRj.onclick = function () { openConfirm(app.appId, 'reject'); };
+
+      const btnRt = document.createElement('button');
+      btnRt.className = 'btn-rt';
+      btnRt.innerText = '差し戻し';
+      btnRt.onclick = function () { openReturnModal(app.appId); };
+
+      const btnAp = document.createElement('button');
+      btnAp.className = 'btn-ap';
+      btnAp.innerText = '承認';
+      btnAp.onclick = function () { openConfirm(app.appId, 'approve'); };
+
+      foot.appendChild(btnRj);
+      foot.appendChild(btnRt);
+      foot.appendChild(btnAp);
+      card.appendChild(foot);
+
+      return card;
+    }
+
+
+    function renderAdminCards(list) {
+      const con = document.getElementById('cardContainer');
+      con.innerHTML = '';
+      if (!list || list.length === 0) {
+        con.innerHTML = `
+          <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
+          <div style="font-size:3rem; margin-bottom:16px;">✅</div>
+          <div>承認待ちの申請はありません</div>
+          <div style="font-size:1rem; margin-top:8px; opacity:0.6;">全ての申請が処理済みです</div>
+          </div>
           `;
+        return;
+      }
+
+      // 重複チェック用のデータを準備
+      const duplicateMap = {};
+      list.forEach(app => {
+        app.details.forEach(detail => {
+          const key = `${app.applicant}_${detail.vendor}_${detail.amount} `;
+          if (!duplicateMap[key]) {
+            duplicateMap[key] = [];
+          }
+          duplicateMap[key].push({ appId: app.appId, detailId: detail.detailId });
         });
-        bodyHtml += '</div>';
+      });
 
-        card.innerHTML = head + bodyHtml;
+      // 画像一括取得用リスト
+      const allFileIds = [];
 
-        const foot = document.createElement('div');
-        foot.className = 'ac-footer';
+      list.forEach(app => {
+        // Collect Image IDs
+        app.details.forEach(d => {
+          if (d.hasImage && d.fileId) allFileIds.push(d.fileId);
+        });
 
-        const btnRj = document.createElement('button');
-        btnRj.className = 'btn-rj';
-        btnRj.innerText = '却下';
-        btnRj.onclick = function () { openConfirm(app.appId, 'reject'); };
-
-        const btnRt = document.createElement('button');
-        btnRt.className = 'btn-rt';
-        btnRt.innerText = '差し戻し';
-        btnRt.onclick = function () { openReturnModal(app.appId); };
-
-        const btnAp = document.createElement('button');
-        btnAp.className = 'btn-ap';
-        btnAp.innerText = '承認';
-        btnAp.onclick = function () { openConfirm(app.appId, 'approve'); };
-
-        foot.appendChild(btnRj);
-        foot.appendChild(btnRt);
-        foot.appendChild(btnAp);
-        card.appendChild(foot);
-
+        const card = createAdminCardElement(app, duplicateMap);
         con.appendChild(card);
       });
+
+      // 画像一括取得
+      if (allFileIds.length > 0) {
+        google.script.run.withSuccessHandler(imgMap => {
+          Object.keys(imgMap).forEach(fid => {
+            const b64 = imgMap[fid];
+            const targets = document.querySelectorAll(`img[data-file-id="${fid}"]`);
+            targets.forEach(img => {
+              if (b64) {
+                img.src = b64;
+              } else {
+                // エラー時
+                img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#ef4444; font-size:0.8rem;">読込エラー</div>';
+              }
+            });
+          });
+        }).api_getImagesBatch(allFileIds);
+      }
     }
 
     function loadOneImage(fileId, imgDomId) {
@@ -2805,6 +3035,7 @@
 
       google.script.run.withSuccessHandler(() => {
         showToast('処理完了');
+        if (typeof closeHistoryEdit === 'function') closeHistoryEdit();
       }).withFailureHandler(e => {
         showToast('エラー: ' + e.message, 'error');
       }).processApplicationWithEdit(appId, action, details);
@@ -2845,6 +3076,7 @@
 
       google.script.run.withSuccessHandler(() => {
         showToast('差し戻しを実行しました');
+        if (typeof closeHistoryEdit === 'function') closeHistoryEdit();
       }).withFailureHandler(e => {
         showToast('エラー: ' + e.message, 'error');
       }).processReturn(appId, comment, details);
@@ -2966,7 +3198,7 @@
     function showToast(msg, type = 'normal') {
       const t = document.getElementById('toast'); t.innerText = msg;
       t.style.background = type === 'error' ? '#ef4444' : '#1e293b';
-      t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 2000);
+      t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 5000);
     }
     function zoomImage(imgId) {
       const src = document.getElementById(imgId).src;
@@ -3041,6 +3273,7 @@
       const date = document.getElementById('depDate').value;
       const amt = document.getElementById('depAmt').value;
       const memo = document.getElementById('depMemo').value;
+      const branch = document.getElementById('depBranch').value;
 
       if (!date || !amt) {
         showToast('日付と金額は必須です', 'error');
@@ -3055,8 +3288,350 @@
       }).withFailureHandler(e => {
         hideLoad();
         showToast('エラー: ' + e.message, 'error');
-      }).api_registerDeposit(date, Number(amt), memo, type);
+      }).api_registerDeposit(date, Number(amt), memo, type, branch);
     }
+
+    // ========== 支払い管理機能 ==========
+    function loadPaymentList() {
+      const startPicker = document.getElementById('paymentStartDatePicker');
+      const endPicker = document.getElementById('paymentEndDatePicker');
+
+      // 初期値設定 (未入力の場合、今月1日〜今日)
+      if (!startPicker.value || !endPicker.value) {
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth() + 1;
+        const mStr = m < 10 ? '0' + m : m;
+        const d = now.getDate();
+        const dStr = d < 10 ? '0' + d : d;
+
+        if (!startPicker.value) startPicker.value = `${y}-${mStr}-01`;
+        if (!endPicker.value) endPicker.value = `${y}-${mStr}-${dStr}`;
+      }
+
+      const sDate = startPicker.value;
+      const eDate = endPicker.value;
+      const el = document.getElementById('paymentListContainer');
+      el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
+
+      // フィルターリセット
+      document.getElementById('paymentApplicantFilter').value = '';
+      document.getElementById('paymentStatusFilter').value = '';
+      document.getElementById('paymentSummaryArea').style.display = 'none';
+
+      console.log('Fetching payment list for range:', sDate, 'to', eDate);
+
+      google.script.run.withSuccessHandler(list => {
+        console.log('Payment list received:', list);
+        lastPaymentList = list; // Store the list globally
+
+        // 申請者リストを動的生成
+        populatePaymentApplicantFilter(list);
+
+        renderPaymentHistoryCards(list);
+        updatePaymentSummary(list);
+      }).withFailureHandler(e => {
+        console.error('Payment list fetch failed:', e);
+        el.innerHTML = 'エラー発生: ' + e.message;
+        showToast(e.message, 'error');
+      }).api_getPaymentList(sDate, eDate);
+    }
+
+    function populatePaymentApplicantFilter(list) {
+      const sel = document.getElementById('paymentApplicantFilter');
+      // 既存オプションをクリア (最初の「全員」は残す)
+      while (sel.options.length > 1) sel.remove(1);
+
+      // ユニークな申請者を抽出
+      const applicants = [...new Set(list.map(a => a.applicant))].sort();
+      applicants.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sel.appendChild(opt);
+      });
+    }
+
+    function filterPaymentList() {
+      const applicantFilter = document.getElementById('paymentApplicantFilter').value;
+      const statusFilter = document.getElementById('paymentStatusFilter').value;
+
+      // Nullチェック
+      if (!lastPaymentList || lastPaymentList.length === 0) {
+        renderPaymentHistoryCards([]);
+        updatePaymentSummary([], applicantFilter, statusFilter);
+        return;
+      }
+
+      // フィルタリング
+      let filtered = lastPaymentList.filter(app => {
+        if (applicantFilter && app.applicant !== applicantFilter) return false;
+        if (statusFilter) {
+          const isPaid = (app.paymentStatus === '支払済');
+          if (statusFilter === '未払い' && isPaid) return false;
+          if (statusFilter === '支払済' && !isPaid) return false;
+        }
+        return true;
+      });
+
+      renderPaymentHistoryCards(filtered);
+      updatePaymentSummary(filtered, applicantFilter, statusFilter);
+    }
+
+    function updatePaymentSummary(list, applicantFilter, statusFilter) {
+      const summaryArea = document.getElementById('paymentSummaryArea');
+      const labelEl = document.getElementById('paymentSummaryLabel');
+      const totalEl = document.getElementById('paymentSummaryTotal');
+      const unpaidEl = document.getElementById('paymentSummaryUnpaid');
+      const paidEl = document.getElementById('paymentSummaryPaid');
+      const countEl = document.getElementById('paymentSummaryCount');
+
+      if (!list || list.length === 0) {
+        summaryArea.style.display = 'none';
+        return;
+      }
+
+      let totalAmount = 0;
+      let unpaidAmount = 0;
+      let paidAmount = 0;
+
+      list.forEach(app => {
+        const amt = Number(app.totalAmount) || 0;
+        totalAmount += amt;
+        if (app.paymentStatus === '支払済') {
+          paidAmount += amt;
+        } else {
+          unpaidAmount += amt;
+        }
+      });
+
+      // ラベル生成
+      const sDate = document.getElementById('paymentStartDatePicker').value;
+      const eDate = document.getElementById('paymentEndDatePicker').value;
+      let label = `${sDate} 〜 ${eDate}`;
+      if (applicantFilter) label += ` | ${applicantFilter}`;
+      if (statusFilter) label += ` (${statusFilter})`;
+
+      labelEl.textContent = label;
+      totalEl.textContent = '¥' + totalAmount.toLocaleString();
+      unpaidEl.textContent = '¥' + unpaidAmount.toLocaleString();
+      paidEl.textContent = '¥' + paidAmount.toLocaleString();
+      countEl.textContent = list.length;
+
+      summaryArea.style.display = 'block';
+    }
+
+
+    function renderPaymentHistoryCards(list) {
+      console.log('Rendering cards with list:', list);
+      const con = document.getElementById('paymentListContainer');
+      con.innerHTML = '';
+      if (!list || list.length === 0) {
+        console.log('List is empty or null');
+        con.innerHTML = '<div style="text-align:center; color:#94a3b8;">対象データがありません</div>';
+        return;
+      }
+
+      // 画像一括取得用リスト
+      const allFileIds = [];
+
+      list.forEach((app, index) => {
+
+        const card = document.createElement('div');
+        card.className = 'admin-card';
+        card.id = 'pay-card-' + app.appId;
+
+        const isPaid = (app.paymentStatus === '支払済');
+        // ステータス判定の堅牢化 (正規表現で判定)
+        const st = String(app.status || '');
+        const isAppApproved = /^(APPROVED|FIXED|承認済み|支払済)$/i.test(st);
+        const isAppRejected = /^(REJECTED|却下)$/i.test(st);
+
+        // 支払状態トグルボタン
+        let payBtnHtml = '';
+        if (!isAppRejected) {
+          payBtnHtml = `<button onclick="togglePayment('${app.appId}', ${!isPaid})" style="font-size:0.9rem; padding:4px 12px; border-radius:12px; border:none; background:${isPaid ? '#cbd5e1' : '#10b981'}; color:${isPaid ? '#64748b' : 'white'}; font-weight:bold; cursor:pointer; margin-left:auto;">${isPaid ? '✅ 支払済' : '💰 未払い'}</button>`;
+        } else {
+          payBtnHtml = `<span style="font-size:0.8rem; color:#ef4444; border:1px solid #ef4444; padding:2px 8px; border-radius:4px; margin-left:auto;">却下済み</span>`;
+        }
+
+        // 詳細・修正ボタン
+        const editBtnHtml = `<button onclick="openHistoryEdit('${app.appId}')" style="margin-top:8px; width:100%; padding:8px; border:1px solid #cbd5e1; background:white; color:#334155; border-radius:8px; font-size:0.9rem; cursor:pointer;">🔍 詳細・修正(再判定)</button>`;
+
+        const head = `
+          <div class="ac-header">
+              <div>
+                <div class="ac-user">${app.applicant} <span class="ac-dept">${app.dept || '不明'}</span></div>
+                <div style="font-size:0.8rem; color:#64748b;">${app.approvedAt}</div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end;">
+                 <div class="ac-total">¥${Number(app.totalAmount).toLocaleString()}</div>
+                 <div style="margin-top:4px;">${payBtnHtml}</div>
+              </div>
+            </div>
+          `;
+
+        // ボディ生成 (AdminCardとほぼ同じだが、入力はdisabledにする)
+        let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
+
+        // 詳細が無い場合のガード
+        const details = app.details || [];
+
+        details.forEach(d => {
+          // N+1対策: ファイルIDを収集
+          if (d.hasImage && d.fileId) {
+            allFileIds.push(d.fileId);
+          }
+          const imgId = `p-img-${d.detailId}`;
+
+          bodyHtml += `
+          <div class="detail-item">
+            <div class="d-row">
+              <div class="d-thumb-box" onclick="zoomImage('${imgId}')">
+                <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" src="" data-file-id="${d.fileId || ''}">
+                  ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
+              </div>
+              <div class="d-inputs">
+                <div class="input-group-compact span-full">
+                  <label>利用日</label>
+                  <div style="padding:4px; font-weight:bold;">${d.usageDate}</div>
+                </div>
+                <div class="input-group-compact span-full">
+                  <label>店名</label>
+                  <div style="padding:4px;">${d.vendor}</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>金額</label>
+                  <div style="padding:4px;">¥${Number(d.amount).toLocaleString()}</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>税率</label>
+                  <div style="padding:4px;">${d.taxRate}%</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>科目</label>
+                  <div style="padding:4px;">${d.subject}</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>インボイス</label>
+                  <div style="padding:4px;">${d.invoiceReg}</div>
+                </div>
+                <div class="input-group-compact span-full">
+                  <label>備考</label>
+                  <div style="padding:4px; font-size:0.9rem; color:#666;">${d.purpose || '-'}</div>
+                </div>
+              </div>
+            </div>
+              </div>
+          `;
+        });
+        bodyHtml += '</div>';
+
+        // フッター (ステータス表示用)
+        // 却下
+        const rjStyle = isAppRejected
+          ? 'background:#fee2e2; color:#ef4444; border:1px solid #ef4444;'
+          : 'background:#f1f5f9; color:#cbd5e1; border:1px solid #e2e8f0; opacity:0.5;';
+        const rjIcon = isAppRejected ? '✖ 却下' : '却下';
+
+        // 差し戻し (今回は支払リストには出ない前提だが、枠だけ用意)
+        const rtStyle = 'background:#f1f5f9; color:#cbd5e1; border:1px solid #e2e8f0; opacity:0.5;';
+
+        // 承認
+        const apStyle = isAppApproved
+          ? 'background:#d1fae5; color:#10b981; border:1px solid #10b981;'
+          : 'background:#f1f5f9; color:#cbd5e1; border:1px solid #e2e8f0; opacity:0.5;';
+        const apIcon = isAppApproved ? '✔ 承認' : '承認';
+
+        const foot = `
+            <div class="ac-footer" style="cursor:default;">
+              <div style="flex:1; text-align:center; padding:10px; border-radius:8px; font-weight:bold; ${rjStyle}">${rjIcon}</div>
+              <div style="flex:1; text-align:center; padding:10px; border-radius:8px; font-weight:bold; ${rtStyle}">差し戻し</div>
+              <div style="flex:1; text-align:center; padding:10px; border-radius:8px; font-weight:bold; ${apStyle}">${apIcon}</div>
+            </div>
+          `;
+
+        const fullHtml = head + bodyHtml + editBtnHtml + foot;
+        card.innerHTML = fullHtml;
+        con.appendChild(card);
+      });
+
+      // 画像取得
+      if (allFileIds.length > 0) {
+        google.script.run.withSuccessHandler(imgMap => {
+          Object.keys(imgMap).forEach(fid => {
+            const b64 = imgMap[fid];
+            const targets = document.querySelectorAll(`img[data-file-id="${fid}"]`);
+            targets.forEach(img => {
+              if (b64) img.src = b64;
+              else img.parentNode.innerHTML = '<div style="font-size:0.7rem; color:red; text-align:center; padding-top:20px;">Load Error</div>';
+            });
+          });
+        }).withFailureHandler(e => { console.log('Image load fail', e); }).api_getImagesBatch(allFileIds);
+      }
+    }
+
+    function togglePayment(appId, toPaid) {
+      if (!confirm(toPaid ? '「支払済」にしますか？' : '「未払い」に戻しますか？')) return;
+      const newStatus = toPaid ? '支払済' : '未払い';
+
+      showLoad('更新中...');
+      google.script.run.withSuccessHandler(res => {
+        hideLoad();
+        showToast('更新しました');
+        // リロードして反映
+        loadPaymentList();
+      }).withFailureHandler(e => {
+        hideLoad();
+        showToast('更新失敗: ' + e.message, 'error');
+      }).api_updatePaymentStatus([appId], newStatus);
+    }
+
+
+    function showDetailModal(appId) {
+      // 古い関数だが念のため残すか、不要なら削除。
+      // 今回はカード表示にしたので不要だが、後方互換でエラーにならないよう空にしておくか放置。
+    }
+
+    // History Edit Logic
+    function openHistoryEdit(appId) {
+      const app = lastPaymentList.find(a => a.appId === appId);
+      if (!app) {
+        showToast('データが見つかりません', 'error');
+        return;
+      }
+
+      const modal = document.getElementById('historyEditModal');
+      const con = document.getElementById('historyEditContent');
+      con.innerHTML = '';
+
+      // createAdminCardElement を呼び出す際に、duplicateMap は空オブジェクトを渡す
+      // 支払い履歴からの編集では重複チェックは不要なため
+      const card = createAdminCardElement(app, {});
+      con.appendChild(card);
+
+      // Trigger Image Load
+      const allFileIds = [];
+      app.details.forEach(d => { if (d.hasImage && d.fileId) allFileIds.push(d.fileId); });
+      if (allFileIds.length > 0) {
+        google.script.run.withSuccessHandler(imgMap => {
+          Object.keys(imgMap).forEach(fid => {
+            const b64 = imgMap[fid];
+            const targets = modal.querySelectorAll(`img[data-file-id="${fid}"]`);
+            targets.forEach(img => { if (b64) img.src = b64; });
+          });
+        }).api_getImagesBatch(allFileIds);
+      }
+
+      modal.style.display = 'flex';
+    }
+
+    function closeHistoryEdit() {
+      document.getElementById('historyEditModal').style.display = 'none';
+      // Reload list to reflect changes
+      loadPaymentList();
+    }
+
   </script>
 </body>
 

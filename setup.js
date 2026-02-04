@@ -66,7 +66,8 @@ function setupHeaderSheet_(ss) {
     '差し戻しコメント', // RETURN_COMMENT
     '経理確定日時',   // FIXED_AT
     '要確認フラグ',   // NEEDS_CHECK
-    '備考'            // REMARKS
+    '備考',           // REMARKS
+    '支払状況'        // PAYMENT_STATUS
   ];
 
   sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
@@ -156,43 +157,73 @@ function setupUserSheet_(ss) {
   }
 
   // 1行目ヘッダ
-  var firstRow = sheet.getRange(1, 1, 1, 4).getValues()[0];
-  var hasHeader = firstRow.some(function (v) { return v !== ''; });
-  if (!hasHeader) {
+  var firstRow = sheet.getRange(1, 1, 1, USER_MASTER_COL.COL_COUNT).getValues()[0];
+  var firstColHeader = String(firstRow[0]).trim();
+
+  // 構造チェック＆移行ロジック
+  if (firstColHeader !== 'ユーザーID' && firstColHeader !== 'EMAIL' && firstColHeader !== 'メールアドレス') {
+    // ヘッダが空、または全く未知の状態 -> 新規作成
     var headers = [
+      'ユーザーID',          // ID
       'メールアドレス',      // EMAIL
       '氏名',                // NAME
       'ロール',              // ROLE
-      '上長メールアドレス'   // MANAGER_MAIL
+      '上長メールアドレス',  // MANAGER_MAIL
+      '拠点'                 // BRANCH
     ];
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
-    Logger.log('ユーザーマスタシートのヘッダを設定しました。');
+    Logger.log('ユーザーマスタシートのヘッダを新規設定しました。');
+  } else if (firstColHeader === 'メールアドレス' || firstColHeader === 'EMAIL') {
+    // 【重要】旧構造からの移行：1列目にID列を挿入し、最後に拠点列を追加
+    Logger.log('旧構造のユーザーマスタを検知しました。移行を開始します...');
+    sheet.insertColumnBefore(1);
+    sheet.getRange(1, 1).setValue('ユーザーID');
+    sheet.getRange(1, 6).setValue('拠点'); // 旧4列 + 1 = 5列。6列目が拠点。
+
+    // 既存行へのIDと拠点の補填
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      var range = sheet.getRange(2, 1, lastRow - 1, 6);
+      var values = range.getValues();
+      for (var i = 0; i < values.length; i++) {
+        if (!values[i][0]) values[i][0] = 'U-' + Utilities.getUuid().substring(0, 8); // ID
+        if (!values[i][5]) values[i][5] = '本社'; // 拠点
+      }
+      range.setValues(values);
+    }
+    Logger.log('既存データの構造移行が完了しました。');
+  } else {
+    Logger.log('ユーザーマスタの構造は最新です。');
   }
 
-  // すでに2行目以降にデータがある場合は、自動追加は行わない
+  // すでに2行目以降にデータがある場合は、管理者追加チェックへ
   var lastRow = sheet.getLastRow();
   if (lastRow >= 2) {
-    Logger.log('ユーザーマスタには既にデータが存在するため、自動追加は行いません。');
+    // 既存データがある場合でも、自分のロールがADMINでない（または見つからない）場合は更新を勧める等の処理は別途だが、
+    // ここでは構造維持に留める。
+    Logger.log('ユーザーマスタにデータが存在します。');
     return;
   }
 
   // ログインユーザーを1件だけ追加
   var currentEmail = getActiveUserEmail_(); // 小文字化済み
   var name = currentEmail; // とりあえずメール＝氏名扱い。必要ならあとで編集
-  var role = ROLES.APPLICANT;
-  var managerEmail = currentEmail; // とりあえず自分を上長とする
+  var role = ROLES.ADMIN;   // セットアップ実行者は管理者とする
+  var managerEmail = currentEmail;
+  var branch = '本社';      // デフォルト
 
-  var row = [
-    currentEmail,
-    name,
-    role,
-    managerEmail
-  ];
+  var row = [];
+  row[USER_MASTER_COL.ID - 1] = 'U-' + Utilities.getUuid().substring(0, 8);
+  row[USER_MASTER_COL.EMAIL - 1] = currentEmail;
+  row[USER_MASTER_COL.NAME - 1] = name;
+  row[USER_MASTER_COL.ROLE - 1] = role;
+  row[USER_MASTER_COL.MANAGER_EMAIL - 1] = managerEmail;
+  row[USER_MASTER_COL.BRANCH - 1] = branch;
 
   sheet.getRange(2, 1, 1, row.length).setValues([row]);
-  Logger.log('ユーザーマスタにログインユーザーの行を1件追加しました: ' + currentEmail);
+  Logger.log('ユーザーマスタにログインユーザー(ADMIN)の行を1件追加しました: ' + currentEmail);
 }
 /**
  * Script Properties を簡単に設定するヘルパー関数

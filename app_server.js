@@ -74,6 +74,7 @@ function api_getMyHistory(targetMonth) {
         displayDate: dStr,
         totalAmount: row[HEADER_COL.TOTAL_AMOUNT - 1],
         statusLabel: row[HEADER_COL.STATUS - 1],
+        dept: row[HEADER_COL.APPLICANT_DEPT - 1] || '',
         firstImageId: null // 後続処理で取得
       });
       appIdList.push(aid);
@@ -130,7 +131,7 @@ function api_submitExpense(data) {
   }
 
   // LockService: 排他制御
-  runWithLock_(function () {
+  return runWithLock_(function () {
     // 2. 準備
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
@@ -203,12 +204,6 @@ function api_submitExpense(data) {
 
     return { applicationId: appId };
   });
-  // Since runWithLock_ returns the result of the callback
-  return { applicationId: appId }; // Wait, I need to make sure runWithLock_ returns properly or rearrange code.
-  // Actually runWithLock_ returns whatever the callback returns.
-  // But my replacement chunk logic here is slightly flawed because I pushed the return inside the callback but also have one outside or need to rely on runWithLock_ return.
-  // Let's adjust.
-
 }
 
 /**

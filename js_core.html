@@ -69,6 +69,7 @@
         subjectMasterWithTax = data.subjectMaster || [];
         subjectMaster = (data.subjectMaster || []).map(s => s.name);
         currentUserBranch = data.currentUser.branch || '';
+        populateBranchFilter(data.branches || []);
 
         // Initial Date
         const now = new Date();

@@ -34,7 +34,9 @@ function getInitData() {
     // 自分の情報を渡して、リストをフィルタリングしてもらう
     list: getApplicantList(currentUser),
     // 科目マスタ（税率情報付き）も取得
-    subjectMaster: getSubjectMasterWithTax_()
+    subjectMaster: getSubjectMasterWithTax_(),
+    // 拠点リストも取得
+    branches: getBranchList_()
   };
 }
 

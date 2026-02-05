@@ -73,12 +73,8 @@ function getAdminDashboardData() {
 
     return {
         pendingList: pendingList,
-        subjectList: subjectList
-    };
-
-    return {
-        pendingList: pendingList,
-        subjectList: subjectList
+        subjectList: subjectList,
+        branches: branchList
     };
 }
 

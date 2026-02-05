@@ -35,6 +35,23 @@ function getSubjectMasterWithTax_() {
  */
 
 /**
+ * 拠点マスタから拠点リストを取得 (共通関数)
+ * Returns: string[] (Sorted)
+ */
+function getBranchList_() {
+    var list = [];
+    var sheet = getSheet_(SHEET_NAMES.BRANCH_MASTER);
+    if (!sheet) return list;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+        var vals = sheet.getRange(2, BRANCH_MASTER_COL.NAME, lastRow - 1, 1).getValues().flat();
+        list = vals.filter(function (b) { return b; }).sort();
+    }
+    return list;
+}
+
+/**
  * ユーザーのEmailと拠点のマッピングを取得
  * Returns: { "email@example.com": "BranchName" }
  */

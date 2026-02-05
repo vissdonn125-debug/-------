@@ -98,11 +98,11 @@
         con.innerHTML = '';
         if (!list || list.length === 0) {
             con.innerHTML = `
-        <div style="color:white; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8; 
+        <div style="color:white; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.9; 
                     display:flex; flex-direction:column; align-items:center; justify-content:center;
-                    position:absolute; top:50%; left:50%; transform:translate(-50%, -50%);">
-        <div style="font-size:3rem; margin-bottom:16px;">✅</div>
-        <div>承認待ちの申請はありません</div>
+                    position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); z-index:10;">
+        <div style="font-size:4rem; margin-bottom:16px;">✅</div>
+        <div style="font-size:1.4rem;">承認待ちの申請はありません</div>
         <div style="font-size:1rem; margin-top:8px; opacity:0.6;">全ての申請が処理済みです</div>
         </div>
         `;

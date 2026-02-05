@@ -18,17 +18,15 @@ function getAdminDashboardData() {
     // 1. 科目マスタ取得 (共通関数使用)
     var subjectList = getSubjectMasterWithTax_();
 
-    // 2. ユニークな拠点リストを取得 (ユーザーマスタから)
+    // 2. 拠点リストを取得 (拠点マスタから)
     var branchList = [];
-    var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
-    if (sheetUser) {
-        var lastRowU = sheetUser.getLastRow();
-        if (lastRowU > 1) {
-            // F列(6列目)が拠点
-            var uVals = sheetUser.getRange(2, 6, lastRowU - 1, 1).getValues().flat();
-            var bSet = {};
-            uVals.forEach(function (b) { if (b) bSet[b] = true; });
-            branchList = Object.keys(bSet).sort();
+    var sheetBranch = getSheet_(SHEET_NAMES.BRANCH_MASTER);
+    if (sheetBranch) {
+        var lastRowB = sheetBranch.getLastRow();
+        if (lastRowB > 1) {
+            // B列(2列目)が拠点名
+            var bVals = sheetBranch.getRange(2, BRANCH_MASTER_COL.NAME, lastRowB - 1, 1).getValues().flat();
+            branchList = bVals.filter(function (b) { return b; }).sort();
         }
     }
 
@@ -181,6 +179,13 @@ function processApplicationWithEdit(appId, action, details) {
                     headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
                 }
             }
+
+            // ★キャッシュ無効化
+            if (rowIndex > 0) {
+                var appDate = headerSheet.getRange(rowIndex, HEADER_COL.APPLICATION_DATE).getValue();
+                invalidateSnapshots_(appDate);
+            }
+
         } finally {
             lock.releaseLock();
         }
@@ -258,6 +263,12 @@ function processReturn(appId, comment, details) {
                     dFullRange.setValues(dValues);
                     headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
                 }
+            }
+
+            // ★キャッシュ無効化
+            if (rowIndex > 0) {
+                var appDate = headerSheet.getRange(rowIndex, HEADER_COL.APPLICATION_DATE).getValue();
+                invalidateSnapshots_(appDate);
             }
         } finally {
             lock.releaseLock();
@@ -473,42 +484,8 @@ function api_getMonthlyReport(targetMonth, targetBranch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
-    // 0. 前月繰越計算
-    var carryOverBalance = 0;
-    if (targetMonth) {
-        var allDataBefore = getReportDataBefore_(targetMonth);
-        var coIncome = 0;
-        var coExpense = 0;
-
-        // ユーザーマスタから拠点情報を取得してマップ化 (繰越用)
-        var coBranchMap = {};
-        var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
-        if (sheetUser) {
-            var lastRowU = sheetUser.getLastRow();
-            if (lastRowU > 1) {
-                var uVals = sheetUser.getRange(2, 2, lastRowU - 1, 5).getValues(); // B:Email, F:Branch
-                uVals.forEach(function (r) {
-                    coBranchMap[normalizeEmail_(r[0])] = r[4] || '';
-                });
-            }
-        }
-
-        allDataBefore.details.forEach(function (det) {
-            // 拠点フィルタ (繰越)
-            if (targetBranch) {
-                var email = normalizeEmail_(det.applicantEmail);
-                if (coBranchMap[email] !== targetBranch) return;
-            }
-
-            var amt = Number(det.amount);
-            if (det.subject === '入金' || det.subject === '仮払受入') {
-                coIncome += amt;
-            } else {
-                coExpense += amt;
-            }
-        });
-        carryOverBalance = coIncome - coExpense;
-    }
+    // 0. 前月繰越計算 (スナップショット利用)
+    var carryOverBalance = getCarryOverWithSnapshot_(targetMonth, targetBranch);
 
     var data = getReportData_(targetMonth);
 
@@ -565,6 +542,12 @@ function api_getMonthlyReport(targetMonth, targetBranch) {
         if (targetBranch) {
             var email = normalizeEmail_(det.applicantEmail);
             var uBranch = userBranchMap[email] || '';
+
+            // 入金・資金移動系は、申請ヘッダの「部署」列(APPLICANT_DEPT)に拠点名を保存しているためそれを使う
+            if (det.subject === '入金' || det.subject === '出金' || det.subject === '調整') {
+                uBranch = det.applicantDept || '';
+            }
+
             // マスタに無い場合などは空文字扱い。完全一致で判定
             if (uBranch !== targetBranch) return;
         }
@@ -718,7 +701,8 @@ function getReportData_(targetDate) {
         // ヘッダレベルでは対象候補としてIDをプールするだけにする（詳細は明細の日付で見る）
         targetAppIds[row[HEADER_COL.APPLICATION_ID - 1]] = {
             name: row[HEADER_COL.APPLICANT_NAME - 1],
-            email: row[HEADER_COL.APPLICANT_EMAIL - 1]
+            email: row[HEADER_COL.APPLICANT_EMAIL - 1],
+            dept: row[HEADER_COL.APPLICANT_DEPT - 1]
         };
     });
 
@@ -753,7 +737,8 @@ function getReportData_(targetDate) {
                 taxRate: row[DETAIL_COL.TAX_RATE - 1],
                 invoiceReg: row[DETAIL_COL.INVOICE_REG - 1],
                 applicantName: targetAppIds[appId].name,
-                applicantEmail: targetAppIds[appId].email
+                applicantEmail: targetAppIds[appId].email,
+                applicantDept: targetAppIds[appId].dept
             });
         }
     });
@@ -813,6 +798,9 @@ function api_registerDeposit(date, amount, memo, type, branch) {
             dRow[DETAIL_COL.TAX_AMOUNT - 1] = 0;
 
             detailSheet.appendRow(dRow);
+
+            // ★キャッシュ無効化
+            invalidateSnapshots_(date);
 
         } finally {
             lock.releaseLock();
@@ -1033,17 +1021,27 @@ function api_updatePaymentStatus(appIds, newStatus) {
             var targetSet = {};
             appIds.forEach(function (id) { targetSet[id] = true; });
             var count = 0; // Initialize count
+            var minDate = null; // キャッシュ無効化用の最小日付
 
             for (var i = 0; i < ids.length; i++) {
                 if (targetSet[ids[i]]) {
+                    var r = i + 2; // 行番号
                     // ステータス書き込み
                     // PAYMENT_STATUS カラムが存在するか確認が必要だが、前回のFixでsetup.jsに追加済み
                     // 万が一列が足りない場合、getHeaderSheet側で自動追加はしていないので、
                     // ここでsetValueするとエラーになる可能性があるが、setupScriptProperties等で整備前提。
-                    sheet.getRange(i + 2, HEADER_COL.PAYMENT_STATUS).setValue(newStatus);
+                    sheet.getRange(r, HEADER_COL.PAYMENT_STATUS).setValue(newStatus);
                     count++;
+
+                    // 日付を取得してキャッシュ無効化対象を特定
+                    var appDate = sheet.getRange(r, HEADER_COL.APPLICATION_DATE).getValue();
+                    if (minDate === null || appDate < minDate) minDate = appDate;
                 }
             }
+
+            // まとめて無効化
+            if (minDate) invalidateSnapshots_(Utilities.formatDate(new Date(minDate), TIMEZONE, 'yyyy-MM-dd'));
+
         } finally {
             lock.releaseLock();
         }

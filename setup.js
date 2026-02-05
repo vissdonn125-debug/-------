@@ -29,6 +29,7 @@ function setupAppSheets() {
   setupDetailSheet_(ss);
   setupSubjectSheet_(ss);
   setupUserSheet_(ss);
+  setupBranchSheet_(ss);
 
   Logger.log('初期セットアップが完了しました。');
 }
@@ -224,6 +225,43 @@ function setupUserSheet_(ss) {
 
   sheet.getRange(2, 1, 1, row.length).setValues([row]);
   Logger.log('ユーザーマスタにログインユーザー(ADMIN)の行を1件追加しました: ' + currentEmail);
+}
+
+/**
+ * 拠点マスタシートの作成＆ヘッダ行設定
+ */
+function setupBranchSheet_(ss) {
+  var sheet = ss.getSheetByName(SHEET_NAMES.BRANCH_MASTER);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAMES.BRANCH_MASTER);
+  }
+
+  // 1行目ヘッダ
+  var firstRow = sheet.getRange(1, 1, 1, BRANCH_MASTER_COL.COL_COUNT).getValues()[0];
+  var hasHeader = firstRow.some(function (v) { return v !== ''; });
+  if (hasHeader) {
+    Logger.log('拠点マスタシートは既にヘッダが設定されています。');
+    return;
+  }
+
+  var headers = [
+    '拠点ID',    // ID
+    '拠点名'     // NAME
+  ];
+
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sheet.setFrozenRows(1);
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight('bold');
+
+  // 初期データ投入 (サンプル)
+  var defaults = [
+    ['B-001', '本社'],
+    ['B-002', '大阪支店'],
+    ['B-003', '名古屋支店']
+  ];
+  sheet.getRange(2, 1, defaults.length, 2).setValues(defaults);
+
+  Logger.log('拠点マスタシートを作成し、初期データを投入しました。');
 }
 /**
  * Script Properties を簡単に設定するヘルパー関数

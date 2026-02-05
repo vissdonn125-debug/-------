@@ -8,7 +8,9 @@ var SHEET_NAMES = {
   HEADER: '申請ヘッダ',
   DETAIL: '明細',
   SUBJECT_MASTER: '科目マスタ',
-  USER_MASTER: 'ユーザーマスタ'
+  USER_MASTER: 'ユーザーマスタ',
+  MONTHLY_SNAPSHOT: 'SYSTEM_MONTHLY_SNAPSHOT',
+  BRANCH_MASTER: '拠点マスタ'
 };
 
 var ROLES = {
@@ -26,6 +28,33 @@ var STATUS = {
   RETURNED: '差し戻し',
   FIXED: '経理確定'
 };
+
+var TRANSACTION_TYPE = {
+  DEPOSIT: '入金',
+  WITHDRAWAL: '出金',
+  ADJUSTMENT: '調整',
+  PROVISIONAL: '仮払受入'
+};
+
+var PAYMENT_STATUS = {
+  PAID: '支払済',
+  UNPAID: '未払い'
+};
+
+function getAllConstants() {
+  return {
+    STATUS: STATUS,
+    ROLES: ROLES,
+    HEADER_COL: HEADER_COL,
+    DETAIL_COL: DETAIL_COL,
+    USER_MASTER_COL: USER_MASTER_COL,
+    BRANCH_MASTER_COL: BRANCH_MASTER_COL,
+    SHEET_NAMES: SHEET_NAMES,
+    TRANSACTION_TYPE: TRANSACTION_TYPE,
+    PAYMENT_STATUS: PAYMENT_STATUS,
+    TIMEZONE: TIMEZONE
+  };
+}
 
 var HEADER_COL = {
   APPLICATION_ID: 1,
@@ -73,4 +102,10 @@ var USER_MASTER_COL = {
   MANAGER_EMAIL: 5,
   BRANCH: 6,  // ★追加: 拠点
   COL_COUNT: 6
+};
+
+var BRANCH_MASTER_COL = {
+  ID: 1,
+  NAME: 2,
+  COL_COUNT: 2
 };

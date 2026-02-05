@@ -9,6 +9,7 @@ function doGet(e) {
   var template = HtmlService.createTemplateFromFile('index');
   var html = template.evaluate()
     .setTitle('経費精算AIOCR')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL); // 埋め込み用
 
   return html;

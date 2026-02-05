@@ -11,6 +11,45 @@ Updated automatically by the AI Assistant.
     1. **Single Source of Truth**: Common logic (like retrieving Master Data) MUST be centralized in a shared function (e.g., in `app_server.js` or `utils.js`). Do not duplicate logic across `admin_` and `user_` files.
     2. **Interface Consistency**: Always verify that the data structure returned by `google.script.run` exactly matches what the frontend `withSuccessHandler` expects, especially when multiple API endpoints feed the same UI component.
 
+## 2026-02-04: Refactoring & Architecture Lessons
+- **Rule**: **Avoid Monoliths**. A single file (e.g., `index.html`) over 2000 lines is unmaintainable. Even in GAS, strict modularization using `HtmlService` (`<?!= include('js'); ?>`) is mandatory for stability and developer sanity.
+- **Rule**: **No Magic Strings**. Never hardcode status strings or keys (e.g., `'支払済'`, `'APPROVED'`) in Frontend or Backend logic.
+    - **Solution**: Centralize all constants in `app_constants.js`, expose them via a `getAllConstants()` function, and inject them into the Global Frontend Scope (`APP_CONST`).
+- **Rule**: **Regex Robustness**. When using Regex for status checks, do NOT hardcode literals inside the pattern (e.g., `/^(APPROVED|承認済み)$/`). If the Constant changes, the Regex will break silently. Construct Regex dynamically from Constants or use `Array.includes()`.
+- **Rule**: **Scalability First**. Any report or calculation that iterates from "the beginning of time" (O(N)) is a ticking time bomb in GAS (6 min timeout).
+    - **Solution**: Implement "Snapshotting" or "Checkpointing" for aggregated data.
+- **Rule**: **Cache Invalidation Trade-offs**. When implementing cache (snapshots), ensuring consistency is harder than the caching itself.
+    - **Issue**: Deleting "All Snapshots after X Date" is safe but inefficient (`O(M)` deletions). Deleting "Only Relevant Branch Snapshots" is efficient but complex (`O(1)` deletion but risk of missing dependencies).
+    - **Decision**: Prioritize **Consistency** over Efficiency initially. Optimize granularity (e.g., filter by Branch) only when measurement proves it's a bottleneck.
+
+## 2026-02-04: Concurrency & Data Integrity
+- **Issue**: Standard `LockService` only protects the backend execution. It does NOT protect against "Stale Reads" (User A opens a form, User B changes it, User A saves and overwrites User B).
+- **Rule**: **Optimistic Locking Required for Strict Integrity**. For critical financial records, implementing a `Version` or `UpdatedAt` check is necessary.
+    - **Current State**: The app currently relies on "Last Write Wins".
+    - **Mitigation**: Critical status checks (e.g., "Is Paid?") are correctly re-checked inside the `LockService` block before writing. This works for simple guards but not for complex content merges.
+
+## 2026-02-04: Date Handling & Timezones
+- **Risk**: Google Apps Script `Date` objects default to the Script Timezone (usually Pacific or owner's zone) unless configured. Mixing `new Date()` and `Utilities.formatDate` can lead to "off-by-one-day" errors.
+- **Rule**: **Explicit Timezone Handling**.
+    - Always define `var TIMEZONE = 'Asia/Tokyo';` as a top-level constant.
+    - When parsing YYYY-MM-DD strings to Date objects for comparison, always set time explicitly (e.g., `d.setHours(0,0,0,0)`) or use `Utilities.formatDate(d, TIMEZONE, ...)` immediately.
+    - **Never** rely on default string parsing (`new Date('2024-01-01')`) without verifying the script runtime timezone.
+
+## 2026-02-04: Security & Access Control
+- **Risk**: In GAS, any global function can technically be called from the frontend via `google.script.run` unless specifically properly scoped or named.
+- **Rule**: **Explicit Role Checks & Naming Convention**.
+    - All Admin logic MUST start with `if (user.role !== 'ADMIN') throw ...`.
+    - Private helper functions should end with `_` (underscore). While GAS V8 doesn't strictly hide them from `run`, it's a strong convention, and critical logic should be wrapped in the `api_` functions that HAVE the role check.
+
+## 2026-02-04: Frontend Error Handling & Feedback
+- **Risk**: Backend errors (Script Timeout, Lock Error, Permission Denied) often result in silent failures on the UI if not handled.
+- **Rule**: **Mandatory Failure Handler**.
+    - Every `google.script.run` call MUST have a `.withFailureHandler(onFailure)`.
+    - The `onFailure` handler MUST:
+        1. Call `hideLoad()` (if a loader is active).
+        2. Call `showToast('Error: ' + e.message, 'error')` or equivalent to notify the user.
+        3. Log to `console.error` for debugging.
+
 ## 2026-02-04: Adversarial Review Findings (Summary)
 - **Rule**: **LockService is Mandatory**. Any function that writes to the Spreadsheet (Approve, Reject, Update) MUST use `LockService` to prevent race conditions.
 - **Rule**: **Avoid N+1 Queries**. Do not call `google.script.run` in a loop (e.g., for fetching images per row). Fetch all necessary data in a single batch call.
@@ -44,4 +83,27 @@ Updated automatically by the AI Assistant.
 - **Pattern**: When a critical action (Approve, Update, Delete) is performed within a modal:
     - **Close on Success**: The modal MUST be closed automatically upon successful backend response.
     - **Refresh Context**: If the action affects the data displayed in the background screen (e.g., History list), trigger a data refresh (e.g., `loadPaymentList()`) as part of the modal closure or success handler.
-    - **User Feedback**: Always show a success toast *after* triggering the closure to provide clear feedback.
+
+## 2026-02-05: Adversarial Code Review Protocol
+- **Trigger**: Before finalizing any `implementation_plan.md` or executing complex code changes.
+- **Action**: The AI MUST adopt the persona of a critical "Senior Engineer (Reviewer)" and critique the proposed changes.
+- **Checklist**:
+    1.  **Security**: Are permissions (ADMIN vs User) strictly enforced? Is input sanitized?
+    2.  **Reliability**: Are there race conditions? Is `LockService` used? Are errors handled (toast)?
+    3.  **Performance**: Are there N+1 queries? Is snapshotting used for large datasets?
+    4.  **Edge Cases**: What happens if the network fails? What if data is empty?
+- **Goal**: Identify bugs and design flaws *before* writing code, not after.
+
+## 2026-02-05: Deployment Persistence
+- **Issue**: Running `clasp deploy` without arguments creates a NEW Deployment ID, changing the Web App URL and breaking user bookmarks.
+- **Rule**: **Update Existing Deployment**.
+    1.  **Check**: Identify the active Deployment ID from `deployments.txt` (or `clasp deployments`).
+    2.  **Command**: Use `clasp deploy -i <EXISTING_ID> --description "..."` to overwrite the existing active deployment.
+    3.  **Verify**: Confirm the Deployment ID in the output matches the expected ID.
+
+## 2026-02-05: Debugging Skills
+- **Skill**: **Detection of Duplicate Script Declarations**
+    - **Symptom**: `SyntaxError: Identifier 'xyz' has already been declared`.
+    - **Cause**: This often happens when `index.html` contains both an inline `<script>` block defining variables AND an external `include('js')` that defines the same variables. This usually occurs during refactoring when moving inline scripts to separate files but forgetting to remove the original inline block.
+    - **Fix**: Check `index.html` for large inline script blocks and cross-reference with included `.html` or `.js` files. Remove the redundant inline block.
+    - **Verification**: Ensure the error disappears in the console and the application loads.

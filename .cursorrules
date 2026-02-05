@@ -1,0 +1,26 @@
+# AI Rules for this Project
+
+You must ALWAYS follow the rules defined below. These rules are derived from `project_lessons.md`.
+
+## Core Principles
+1. **Single Source of Truth**: Common logic (like retrieving Master Data) MUST be centralized. Do not duplicate logic across files.
+2. **Interface Consistency**: Verify `google.script.run` return types match frontend expectations exactly.
+3. **Avoid Monoliths**: Modularize code using `HtmlService` includes. No single file > 2000 lines.
+4. **No Magic Strings**: Use `app_constants.js` for all status, IDs, and keys.
+5. **Regex Robustness**: Construct Regex dynamically from Constants.
+6. **Scalability**: Avoid O(N) operations on full datasets. Use snapshots/checkpoints.
+7. **Concurrency**: Critical write operations MUST use `LockService`.
+8. **Timezone Handling**: Explicitly use `Asia/Tokyo`. Do not rely on default `new Date()` parsing.
+9. **Access Control**: Explicitly check `user.role === 'ADMIN'` for admin functions.
+10. **Error Handling**: Every `google.script.run` must have `.withFailureHandler` that shows a toast.
+11. **Japanese Output**: All user communication must be in Japanese.
+
+## Workflow Rules
+- **Always Push**: Run `clasp push` immediately after verifying changes.
+- **Always Deploy**: Update deployment after pushing. Use `clasp deploy -i <ID>` to update the EXISTING ID. Do not create new IDs.
+- **HTML Integrity**: No spaces in tags (e.g. `<div` not `< div`).
+- **Modal UI**: Close modals on success and refresh underlying data.
+- **Adversarial Review**: Before execution, critique your own plan as a critical Senior Engineer (Security, Performance, Edge Cases).
+
+## System Prompts
+- **Read First**: Always read `project_lessons.md` at the start of a session for the full context and history of these rules.

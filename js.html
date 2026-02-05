@@ -1,0 +1,1684 @@
+﻿<script>
+  let cartItems = [];
+  let subjectMaster = [];
+  let subjectMasterWithTax = []; // 税率情報付き科目マスタ
+  let editingId = null;
+  let isAdminMode = false;
+  let pendingAppId = null;
+  let pendingAction = null;
+  let allPendingList = []; // フィルター用の全データ保存
+  let lastPaymentList = []; // 支払い管理画面のデータを保持
+
+  window.onload = function () {
+    google.script.run.withSuccessHandler(initData).getInitData();
+    // PCでの横スクロール補助
+    // PCでの横スクロール補助 (廃止: 縦スクロール阻害のため)
+    // const con = document.getElementById('cardContainer');
+    // con.addEventListener('wheel', ...);
+  };
+
+  let editingAppId = null; // 申請編集モード時のID
+
+  function initData(data) {
+    const sel = document.getElementById('applicantSelector');
+    sel.innerHTML = '';
+    data.list.forEach(u => {
+      const op = document.createElement('option');
+      op.value = u.id; op.text = u.name;
+      if (normalize(u.email) === normalize(data.currentUser.email)) op.selected = true;
+      sel.appendChild(op);
+    });
+
+    // ★DEBUG: 権限確認用 (後で削除) - Removed
+    // showToast("Debug: " + data.currentUser.email + " / " + data.currentUser.role);
+
+    // 管理者ならメニューに管理者項目を表示
+    if (data.currentUser.role === 'ADMIN') {
+      document.getElementById('adminMenuBlock').style.display = 'block';
+    }
+
+    // 科目マスタ（税率情報付き）を保存
+    subjectMasterWithTax = data.subjectMaster || [];
+    subjectMaster = (data.subjectMaster || []).map(s => s.name);
+
+    // 今月/今日を初期値にセット
+    const now = new Date();
+    const ym = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
+    const ymd = ym + '-' + ('0' + now.getDate()).slice(-2);
+
+    document.getElementById('reportMonthPicker').value = ym;
+
+    const dailyPicker = document.getElementById('dailyReportMonthPicker');
+    if (dailyPicker) {
+      dailyPicker.type = 'date';
+      dailyPicker.value = ymd;
+    }
+  }
+
+  // カスタム確認ダイアログ
+  function showConfirm(msg, onOk) {
+    const d = document.getElementById('confirmModal');
+    const m = document.getElementById('confirmMessage');
+    const ok = document.getElementById('confirmOkBtn');
+    const ng = document.getElementById('confirmCancelBtn');
+
+    if (!d || !m || !ok || !ng) {
+      console.error('Confirm Modal elements not found');
+      if (confirm(msg)) if (onOk) onOk(); // Fallback
+      return;
+    }
+
+    m.textContent = msg;
+    d.style.display = 'flex';
+
+    // Remove old listeners to prevent stacking
+    const newOk = ok.cloneNode(true);
+    ok.parentNode.replaceChild(newOk, ok);
+    const newNg = ng.cloneNode(true);
+    ng.parentNode.replaceChild(newNg, ng);
+
+    newOk.onclick = () => {
+      d.style.display = 'none';
+      if (onOk) onOk();
+    };
+
+    newNg.onclick = () => {
+      d.style.display = 'none';
+    };
+  }
+
+  function cancelEditMode() {
+    showConfirm('編集内容を破棄して新規作成に戻りますか？', () => {
+      editingAppId = null;
+      cartItems = [];
+      renderCart();
+    });
+  }
+
+  // ========== 画面遷移ロジック ==========
+  function switchView(viewId) {
+    // 全てのビューを非表示
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    // 指定ビューを表示
+    document.getElementById(viewId).classList.add('active');
+
+    // フッターナビのアクティブ状態更新
+    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+    if (viewId === 'userView') {
+      document.getElementById('navApply').classList.add('active');
+      // App Mode: Fixed viewport
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
+      document.body.style.height = '100dvh';
+    } else if (viewId === 'historyView') {
+      document.getElementById('navHistory').classList.add('active');
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
+      document.body.style.height = '100dvh';
+    } else if (viewId === 'menuView' || viewId.startsWith('report')) {
+      document.getElementById('navMenu').classList.add('active');
+      // Menu/Report might need scroll? Start with fixed to be safe, or auto if content long.
+      // Usually menu fits, report might need scroll. Let's force scrolling for report?
+      // For now, keep App Mode default for simplicity unless admin.
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
+      document.body.style.height = '100dvh';
+    } else if (viewId === 'adminView' || viewId === 'paymentView') {
+      document.getElementById('navMenu').classList.add('active');
+      // Admin Mode & Payment View: Global Scroll
+      document.documentElement.style.overflowY = 'auto';
+      document.body.style.overflowY = 'auto';
+      document.body.style.height = 'auto';
+    }
+  }
+
+  // ========== 履歴機能 ==========
+  // ========== 履歴機能 ==========
+  function loadHistory() {
+    // 月ピッカー初期化
+    const picker = document.getElementById('historyMonthPicker');
+
+    // 選択肢がまだない場合（初回）
+    if (picker.options.length <= 1) {
+      const now = new Date();
+      // 直近12ヶ月分生成
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const val = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+        const txt = d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+        const op = document.createElement('option');
+        op.value = val; op.text = txt;
+        if (i === 0) op.selected = true; // 今月
+        picker.appendChild(op);
+      }
+    }
+
+    const targetMonth = picker.value || '';
+    const listEl = document.getElementById('historyInnerList');
+    if (listEl) listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">読み込んでいます...</div>';
+
+    google.script.run.withSuccessHandler(list => {
+      if (!list || list.length === 0) {
+        listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">履歴はありません</div>';
+        return;
+      }
+
+      // 画像一括取得用IDリスト
+      const allFileIds = [];
+      list.forEach(item => {
+        if (item.firstImageId) allFileIds.push(item.firstImageId);
+      });
+
+      listEl.innerHTML = list.map(item => {
+        let stClass = 'st-apply';
+        if (item.statusLabel === APP_CONST.STATUS.APPROVED || item.statusLabel === APP_CONST.STATUS.FIXED) stClass = 'st-ok';
+        else if (item.statusLabel === APP_CONST.STATUS.REJECTED) stClass = 'st-ng';
+        else if (item.statusLabel === APP_CONST.STATUS.RETURNED) stClass = 'st-ret';
+
+        // 画像サムネイル
+        let thumbHtml = '';
+        if (item.firstImageId) {
+          const imgId = 'h-img-' + item.applicationId;
+          // Use direct drive thumbnail link for speed
+          const thumbUrl = 'https://drive.google.com/thumbnail?id=' + item.firstImageId + '&sz=w200';
+          thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; overflow:hidden; background:#f1f5f9; margin-right:12px; flex-shrink:0; cursor:pointer;" onclick="zoomImage('${imgId}')">
+                <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" 
+                     data-file-id="${item.firstImageId}" 
+                     src="${thumbUrl}" 
+                     loading="lazy"
+                     onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.8rem; color:#94a3b8;\'>📷</span>';">
+             </div>`;
+        } else {
+          thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#cbd5e1; margin-right:12px; flex-shrink:0;">
+                <span>📷</span>
+             </div>`;
+        }
+
+        const canEdit = (item.statusLabel !== APP_CONST.STATUS.APPROVED && item.statusLabel !== APP_CONST.STATUS.FIXED);
+        const editBtn = canEdit
+          ? `<button onclick="loadApplicationForEdit('${item.applicationId}')" style="margin-top:8px; padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-size:0.8rem; color:#334155; cursor:pointer;">✎ 編集・再申請</button>`
+          : '';
+
+        return `
+            <div class="history-item">
+              <div style="display:flex; align-items:center; flex:1;">
+                 ${thumbHtml}
+                 <div style="min-width:0;">
+                   <div style="font-size:0.85rem; color:#64748b; margin-bottom:2px;">${item.displayDate}</div>
+                   <div style="font-weight:bold; font-size:1rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.statusLabel}</div>
+                 </div>
+              </div>
+              <div style="text-align:right;">
+                 <div style="font-weight:900; font-size:1.1rem; color:#1e293b;">¥${(item.totalAmount || 0).toLocaleString()}</div>
+                 ${editBtn}
+              </div>
+            </div>
+        `;
+      }).join('');
+
+      // Batch fetch removed for performance. Direct URLs are used.
+      /*
+      if (allFileIds.length > 0) {
+        google.script.run.withSuccessHandler(imgMap => {
+          allFileIds.forEach(fid => {
+             const b64 = imgMap[fid];
+             const targets = document.querySelectorAll(`img[data-file-id="${fid}"]`);
+             targets.forEach(img => {
+               if (b64) img.src = b64;
+               else img.parentNode.innerHTML = '<span style="font-size:0.6rem; color:red;">x</span>';
+             });
+          });
+        }).api_getImagesBatch(allFileIds);
+      }
+      */
+
+    }).withFailureHandler(e => {
+      listEl.innerHTML = '<div style="color:red; text-align:center;">読み込み失敗</div>';
+      showToast('エラー: ' + e.message, 'error');
+    }).api_getMyHistory(targetMonth);
+  }
+
+  function loadApplicationForEdit(appId) {
+    const proceed = () => {
+      showLoad('申請データを取得中...');
+      google.script.run.withSuccessHandler(res => {
+        hideLoad();
+        editingAppId = appId;
+        cartItems = res.items;
+        renderCart();
+        switchView('userView');
+        showToast('編集モードになりました');
+      }).withFailureHandler(e => {
+        hideLoad();
+        showToast('取得エラー: ' + e.message, 'error');
+      }).api_getApplication(appId);
+    };
+
+    if (cartItems.length > 0) {
+      showConfirm('現在入力中の内容は破棄されますがよろしいですか？', proceed);
+    } else {
+      proceed();
+    }
+  }
+
+  // ========== レポート機能 ==========
+  function loadMonthlyReport() {
+    const m = document.getElementById('reportMonthPicker').value;
+    if (!m) return;
+
+    document.getElementById('monthlyGrid').innerHTML = '<tr><td colspan="100" style="text-align:center;">読み込み中...</td></tr>';
+
+    google.script.run.withSuccessHandler(res => {
+      renderMonthlyReport(res);
+    }).withFailureHandler(e => {
+      showToast('レポート取得失敗: ' + e.message, 'error');
+    }).api_getMonthlyReport(m, document.getElementById('reportBranchFilter').value);
+  }
+
+  function renderMonthlyReport(data) {
+    // スコアカード
+    const sc = data.scorecard;
+    document.getElementById('repCarry').innerText = '¥' + data.carryOver.toLocaleString();
+    document.getElementById('repInc').innerText = '¥' + sc.income.toLocaleString();
+    document.getElementById('repExp').innerText = '¥' + sc.expense.toLocaleString();
+    document.getElementById('repBal').innerText = '¥' + data.totalBalance.toLocaleString();
+
+    // グリッド
+    const grid = data.grid;
+    const tbl = document.getElementById('monthlyGrid');
+    let thHtml = '<thead><tr><th>日付</th>';
+    grid.subjects.forEach(s => thHtml += `<th>${s}</th>`);
+    thHtml += '<th>入金</th><th>出金</th><th>残高</th></tr></thead>'; // 残高列追加
+
+    let tbHtml = '<tbody>';
+    grid.days.forEach(day => {
+      // 日付ラベル
+      const parts = day.split('-');
+      const dLabel = `${Number(parts[1])}/${Number(parts[2])}`;
+      let rowHtml = `<tr><td>${dLabel}</td>`;
+      let dData = grid.data[day];
+
+      grid.subjects.forEach(sub => {
+        const val = dData.subjects[sub] || 0;
+        rowHtml += `<td style="color:${val === 0 ? '#cbd5e1' : '#0f172a'}">¥${val.toLocaleString()}</td>`;
+      });
+
+      // 入金・出金・残高
+      rowHtml += `<td style="color:#059669; font-weight:bold;">¥${dData.income.toLocaleString()}</td>`;
+      rowHtml += `<td style="color:#dc2626; font-weight:bold;">¥${dData.expense.toLocaleString()}</td>`;
+      rowHtml += `<td style="font-weight:900;">¥${dData.balance.toLocaleString()}</td>`;
+
+      rowHtml += `</tr>`;
+      tbHtml += rowHtml;
+    });
+    tbHtml += '</tbody>';
+    tbl.innerHTML = thHtml + tbHtml;
+
+    // インボイスサマリ (全体 + 科目別)
+    const invBody = document.getElementById('invoiceBody');
+    const inv = data.invoice;
+    let invHtml = '';
+
+    // --- 全体 ---
+    invHtml += '<tr style="background:#f1f5f9;"><td colspan="4" style="font-weight:bold; text-align:left;">▼ 全体集計</td></tr>';
+
+    const renderRow = (label, obj, prefix = '') => {
+      let h = '';
+      Object.keys(obj).forEach(rate => {
+        if (obj[rate] > 0) {
+          h += `<tr><td style="text-align:left;">${prefix}${label}</td><td>${rate}%</td><td style="font-weight:bold;">¥${obj[rate].toLocaleString()}</td></tr>`;
+        }
+      });
+      return h;
+    };
+
+    invHtml += renderRow('適格(あり)', inv.total.withInvoice);
+    invHtml += renderRow('適格(なし)', inv.total.withoutInvoice);
+    invHtml += renderRow('不明', inv.total.unknown);
+
+    // --- 科目別 ---
+    if (inv.bySubject) {
+      Object.keys(inv.bySubject).sort().forEach(sub => {
+        const sObj = inv.bySubject[sub];
+        let hasData = false;
+        ['withInvoice', 'withoutInvoice', 'unknown'].forEach(k => {
+          Object.values(sObj[k]).forEach(v => { if (v > 0) hasData = true; });
+        });
+
+        if (hasData) {
+          invHtml += `<tr style="background:#f8fafc;"><td colspan="4" style="font-weight:bold; text-align:left; color:#1e293b;">▼ ${sub}</td></tr>`;
+          invHtml += renderRow('適格(あり)', sObj.withInvoice, '　');
+          invHtml += renderRow('適格(なし)', sObj.withoutInvoice, '　');
+          invHtml += renderRow('不明', sObj.unknown, '　');
+        }
+      });
+    }
+
+    if (invHtml === '') invHtml = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">データなし</td></tr>';
+    invBody.innerHTML = invHtml;
+  }
+
+  function loadDailyReport() {
+    const m = document.getElementById('dailyReportMonthPicker').value;
+    if (!m) return;
+    const b = document.getElementById('dailyReportBranchFilter') ? document.getElementById('dailyReportBranchFilter').value : '';
+    const el = document.getElementById('dailyPersonList');
+    el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
+
+    google.script.run.withSuccessHandler(res => {
+      if (res.list.length === 0) {
+        el.innerHTML = '<div style="text-align:center; color:#94a3b8;">データがありません</div>';
+        return;
+      }
+      el.innerHTML = res.list.map(p => `
+          <div style="background:white; padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+            <div style="font-weight:bold; font-size:1.1rem;">${p.name}</div>
+            <div style="font-weight:900; font-size:1.3rem; color:#059669;">¥${p.total.toLocaleString()}</div>
+          </div>
+        `).join('');
+    }).withFailureHandler(e => {
+      el.innerHTML = 'エラー';
+      showToast(e.message, 'error');
+    }).api_getDailyReport(m, b);
+  }
+  function normalize(s) { return String(s || '').trim().toLowerCase(); }
+
+  // ========== ユーザー機能 ==========
+  function openCamera() { document.getElementById('rFile').click(); }
+
+  function addManualItem() {
+    const id = Date.now();
+    const today = new Date().toISOString().split('T')[0];
+    // 空の明細を作成
+    const item = {
+      id: id,
+      status: 'done', // 解析不要なのでdone
+      amount: 0,
+      vendor: '',
+      subject: '',
+      invoiceReg: '不明',
+      taxRate: 10,
+      usageDate: today,
+      purpose: '',
+      imgData: null, // 画像なし
+      receiptUrl: null
+    };
+    cartItems.push(item);
+    renderCart();
+
+    // すぐに編集モードへ
+    openEdit(id);
+    showToast('手入力明細を追加しました');
+  }
+
+  function handleFile(input) {
+    if (!input.files[0]) return;
+    const file = input.files[0];
+    const id = Date.now();
+    const isContinueMode = document.getElementById('continueMode').checked;
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      const dataUrl = e.target.result;
+
+      // 続きモードの場合、最後の明細に追加
+      if (isContinueMode && cartItems.length > 0) {
+        const lastItem = cartItems[cartItems.length - 1];
+
+        // 画像を配列で保持（初回は配列化）
+        if (!Array.isArray(lastItem.imgData)) {
+          lastItem.imgData = [lastItem.imgData];
+        }
+        lastItem.imgData.push(dataUrl);
+
+        lastItem.status = 'analyzing';
+        renderCart();
+        showToast('続きを解析中...');
+
+        const base64 = dataUrl.split(',')[1];
+        const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+
+        google.script.run.withSuccessHandler(res => {
+          lastItem.status = 'done';
+          lastItem.amount += res.ocr.amount; // 金額を加算
+
+          // receiptUrlも配列で保持
+          if (!Array.isArray(lastItem.receiptUrl)) {
+            lastItem.receiptUrl = [lastItem.receiptUrl];
+          }
+          lastItem.receiptUrl.push(res.receiptUrl);
+
+          renderCart();
+          showToast('続きを追加: +¥' + res.ocr.amount.toLocaleString());
+          document.getElementById('continueMode').checked = false; // チェックを外す
+        }).withFailureHandler(e => {
+          lastItem.status = 'error';
+          renderCart();
+          showToast('解析失敗: 手入力してください', 'error');
+        }).uploadReceiptForOcr(base64, mimeType);
+
+      } else {
+        // 通常モード：新しい明細を作成
+        const today = new Date().toISOString().split('T')[0];
+        const item = { id: id, status: 'analyzing', amount: 0, vendor: '', subject: '', invoiceReg: '不明', taxRate: 10, usageDate: today, purpose: '', imgData: dataUrl, receiptUrl: null };
+        cartItems.push(item);
+        renderCart();
+        showToast('解析を開始しました');
+
+        const base64 = dataUrl.split(',')[1];
+        const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+
+        google.script.run.withSuccessHandler(res => {
+          const target = cartItems.find(i => i.id === id);
+          if (target) {
+            target.status = 'done';
+            target.amount = res.ocr.amount;
+            target.vendor = res.ocr.vendor;
+            target.subject = res.ocr.subject;
+            target.invoiceReg = res.ocr.invoiceReg || '不明';
+            target.taxRate = res.ocr.taxRate || 10;
+            target.usageDate = res.ocr.date || today;
+            target.receiptUrl = res.receiptUrl;
+            renderCart();
+            showToast('解析完了: ' + (target.vendor || '店名不明'));
+          }
+        }).withFailureHandler(e => {
+          const target = cartItems.find(i => i.id === id);
+          if (target) {
+            target.status = 'error';
+            renderCart();
+            showToast('解析失敗: 手入力してください', 'error');
+          }
+        }).uploadReceiptForOcr(base64, mimeType);
+      }
+
+      setTimeout(() => { document.getElementById('rFile').value = ''; }, 500);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function renderCart() {
+    const list = document.getElementById('cartList');
+    list.innerHTML = '';
+    let total = 0;
+
+    // 編集モード表示
+    if (editingAppId) {
+      const warning = document.createElement('div');
+      warning.innerHTML = `<div style="background:#fff7ed; color:#c2410c; padding:8px 12px; margin-bottom:12px; border-radius:8px; font-size:0.9rem; display:flex; justify-content:space-between; align-items:center;">
+          <span>📝 過去の申請を編集中</span>
+          <button onclick="cancelEditMode()" style="background:none; border:1px solid #c2410c; border-radius:4px; color:#c2410c; padding:2px 8px; font-size:0.75rem;">キャンセル</button>
+        </div>`;
+      list.appendChild(warning);
+    }
+
+    if (cartItems.length === 0) {
+      list.innerHTML += '<div class="cart-empty">レシートを撮影してください</div>';
+      document.getElementById('totalDisplay').innerText = '0';
+      document.getElementById('submitBtn').disabled = true;
+      const btnInner = document.getElementById('submitBtnText');
+      if (btnInner) btnInner.innerText = 'まとめて申請';
+      return;
+    }
+
+    cartItems.forEach((item) => {
+      total += Number(item.amount || 0);
+      const div = document.createElement('div');
+      div.className = 'cart-item';
+      div.onclick = (e) => {
+        if (!e.target.closest('.cart-del-btn')) openEdit(item.id);
+      };
+
+      let overlay = item.status === 'analyzing' ? `<div class="analyzing-overlay"><div class="mini-spinner"></div></div>` : '';
+      let amtClass = item.amount > 0 ? 'cart-amount' : 'cart-amount zero';
+      let amtText = item.amount > 0 ? `¥${item.amount.toLocaleString()}` : '¥ -';
+      let statusText = item.status === 'analyzing' ? '解析中...' : (item.vendor || '店名不明');
+
+      // 画像表示ロジック (編集時のreceiptUrl対応強化)
+      let imgHtml = '';
+      const hasImgData = item.imgData && (Array.isArray(item.imgData) ? item.imgData.length > 0 : item.imgData);
+      const hasUrl = item.receiptUrl && (Array.isArray(item.receiptUrl) ? item.receiptUrl.length > 0 : item.receiptUrl);
+
+      if (hasImgData) {
+        // 新規追加中の画像 (Base64)
+        const imgSrc = Array.isArray(item.imgData) ? item.imgData[0] : item.imgData;
+        const imgCount = Array.isArray(item.imgData) ? item.imgData.length : 1;
+        const badge = imgCount > 1 ? `<div style="position:absolute; top:4px; right:4px; background:#3b82f6; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem; font-weight:700;">×${imgCount}</div>` : '';
+        imgHtml = `<img src="${imgSrc}" class="cart-thumb">${badge}`;
+      } else if (hasUrl) {
+        // サーバー保存済画像 (編集モード)
+        const urls = Array.isArray(item.receiptUrl) ? item.receiptUrl : [item.receiptUrl];
+        const count = urls.length;
+        // 最初の画像のIDを取得してサムネイル表示を試みる
+        let firstId = null;
+        const m = urls[0].match(/id=([a-zA-Z0-9_-]+)/) || urls[0].match(/\/d\/([a-zA-Z0-9_-]+)/);
+        if (m) firstId = m[1];
+
+        if (firstId) {
+          const imgId = 'cart-img-' + item.id;
+          imgHtml = `<div class="cart-thumb" style="overflow:hidden; position:relative;">
+                <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                <div style="position:absolute; top:4px; right:4px; background:#64748b; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem;">保存済×${count}</div>
+             </div>`;
+          setTimeout(() => loadOneImage(firstId, imgId), 10);
+        } else {
+          imgHtml = `<div class="cart-thumb" style="background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:0.8rem; font-weight:bold;"><span>📷 済×${count}</span></div>`;
+        }
+      } else {
+        // 手入力など画像なし
+        imgHtml = `<div class="cart-thumb" style="background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:1.5rem;">✏️</div>`;
+      }
+
+      div.innerHTML = `
+        <div class="cart-item-header">
+          <div class="cart-thumb-box">
+            ${imgHtml}
+            ${overlay}
+          </div>
+          <div class="cart-item-content">
+            <div class="cart-info">
+              <div class="cart-meta">${item.subject ? `<span class="status-badge">${item.subject}</span>` : ''}</div>
+              <div class="cart-vendor">${statusText}</div>
+            </div>
+          </div>
+        </div>
+        <div class="cart-item-actions">
+          <div class="${amtClass}">${amtText}</div>
+          <button class="cart-del-btn" onclick="event.stopPropagation(); delCart(${item.id})">
+            <span>🗑️</span> 削除
+          </button>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+    document.getElementById('totalDisplay').textContent = total.toLocaleString();
+    document.getElementById('submitBtn').disabled = false;
+
+    const btnInner = document.getElementById('submitBtnText');
+    if (btnInner) {
+      btnInner.innerText = editingAppId ? '更新して再申請' : 'まとめて申請';
+    }
+  }
+
+  function delCart(id) {
+    showConfirm('削除しますか？', () => {
+      cartItems = cartItems.filter(i => i.id !== id);
+      renderCart();
+    });
+  }
+
+  function openEdit(id) {
+    const item = cartItems.find(i => i.id === id);
+    if (!item) return;
+    editingId = id;
+
+    // 複数画像に対応
+    const imgBox = document.querySelector('.edit-img-box');
+    imgBox.innerHTML = '';
+
+    const hasImg = item.imgData && (Array.isArray(item.imgData) ? item.imgData.length > 0 : true);
+
+    if (hasImg) {
+      if (Array.isArray(item.imgData)) {
+        item.imgData.forEach((img, idx) => {
+          const imgEl = document.createElement('img');
+          imgEl.src = img;
+          imgEl.className = 'edit-img';
+          imgEl.style.marginBottom = idx < item.imgData.length - 1 ? '12px' : '0';
+          imgEl.onclick = function () { zoomImageSrc(this.src); }; // Zoom on click
+          imgBox.appendChild(imgEl);
+        });
+      } else {
+        const imgEl = document.createElement('img');
+        imgEl.src = item.imgData;
+        imgEl.className = 'edit-img';
+        imgEl.onclick = function () { zoomImageSrc(this.src); }; // Zoom on click
+        imgBox.appendChild(imgEl);
+      }
+      imgBox.style.display = 'block';
+    } else if (item.receiptUrl) {
+      imgBox.innerHTML = '';
+
+      let urls = [];
+      if (Array.isArray(item.receiptUrl)) urls = item.receiptUrl;
+      else if (typeof item.receiptUrl === 'string') urls = item.receiptUrl.split(',').filter(u => u.trim());
+
+      if (urls.length > 0) {
+        urls.forEach((u, i) => {
+          const btn = document.createElement('div');
+          btn.innerHTML = `<span>📷 保存済み画像 ${i + 1} を見る</span>`;
+          btn.onclick = () => zoomImageSrc(u.trim());
+          btn.style.cssText = 'padding:12px 20px; background:white; margin:6px; border-radius:12px; cursor:pointer; font-weight:bold; color:#3b82f6; display:flex; align-items:center; justify-content:center; gap:8px; width:80%; box-shadow:0 2px 5px rgba(0,0,0,0.1); transition:transform 0.1s;';
+          btn.onmousedown = () => btn.style.transform = 'scale(0.96)';
+          btn.onmouseup = () => btn.style.transform = 'scale(1)';
+          imgBox.appendChild(btn);
+        });
+        imgBox.style.display = 'flex';
+        imgBox.style.flexDirection = 'column';
+      } else {
+        imgBox.style.display = 'none';
+      }
+    } else {
+      // 画像なし（手入力）
+      imgBox.style.display = 'none';
+    }
+
+    document.getElementById('eDate').value = item.usageDate || new Date().toISOString().split('T')[0];
+    document.getElementById('eAmt').value = item.amount || '';
+    document.getElementById('eTax').value = item.taxRate || 10;
+    document.getElementById('eVen').value = item.vendor || '';
+    document.getElementById('eSub').value = item.subject || '';
+    document.getElementById('ePurpose').value = item.purpose || '';
+    document.getElementById('editModal').style.display = 'flex';
+  }
+
+  function saveEdit() {
+    const item = cartItems.find(i => i.id === editingId);
+    if (item) {
+      item.usageDate = document.getElementById('eDate').value;
+      item.amount = Number(document.getElementById('eAmt').value);
+      item.taxRate = Number(document.getElementById('eTax').value);
+      item.vendor = document.getElementById('eVen').value;
+      item.subject = document.getElementById('eSub').value;
+      item.purpose = document.getElementById('ePurpose').value;
+      if (item.status !== 'analyzing') item.status = 'done';
+    }
+    renderCart();
+    document.getElementById('editModal').style.display = 'none';
+  }
+
+  // 科目変更時に税率を自動更新
+  function updateTaxRateBySubject() {
+    const subjectName = document.getElementById('eSub').value;
+    const subjectData = subjectMasterWithTax.find(s => s.name === subjectName);
+    if (subjectData) {
+      document.getElementById('eTax').value = subjectData.taxRate;
+    }
+  }
+  function closeEdit() { document.getElementById('editModal').style.display = 'none'; }
+
+  function submitCart() {
+    if (cartItems.length === 0) return;
+    const invalid = cartItems.some(i => !i.amount || i.amount <= 0);
+    if (invalid) return showToast('金額が未入力の明細があります！', 'error');
+    const analyzing = cartItems.some(i => i.status === 'analyzing');
+    if (analyzing) return showToast('解析中の明細があります', 'error');
+
+    const isUpdate = !!editingAppId;
+    const msg = isUpdate
+      ? `修正内容で更新（再申請）しますか？\n合計 ¥${document.getElementById('totalDisplay').innerText}`
+      : `合計 ¥${document.getElementById('totalDisplay').innerText} で申請しますか？`;
+
+    showConfirm(msg, () => {
+      const applicantId = document.getElementById('applicantSelector').value;
+      const data = { applicantId: applicantId, items: cartItems };
+
+      showLoad(isUpdate ? '更新中...' : '申請送信中...');
+
+      const successHandler = (res) => {
+        hideLoad();
+        showToast(isUpdate ? '更新しました！' : '申請が完了しました！');
+        cartItems = [];
+        editingAppId = null;
+        renderCart();
+      };
+      const failureHandler = (e) => {
+        hideLoad();
+        showToast('送信失敗: ' + e.message, 'error');
+      };
+
+      if (isUpdate) {
+        google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_updateApplication(editingAppId, data);
+      } else {
+        google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_submitExpense(data);
+      }
+    });
+  }
+
+
+  // ========== 管理者機能 ==========
+  function toggleMode() {
+    const btn = document.getElementById('adminBtn');
+    if (!isAdminMode) {
+      isAdminMode = true;
+      document.getElementById('userView').classList.remove('active');
+      document.getElementById('adminView').classList.add('active');
+      btn.innerText = '申請へ';
+      loadAdminData();
+    } else {
+      isAdminMode = false;
+      document.getElementById('adminView').classList.remove('active');
+      document.getElementById('userView').classList.add('active');
+      btn.innerText = '管理者';
+    }
+  }
+
+  function loadAdminData() {
+    showLoad('データ取得中...');
+    google.script.run.withSuccessHandler(res => {
+      hideLoad();
+      // res.subjectList は Object Array ({name, taxRate...})
+
+      // グローバル変数を更新
+      subjectMasterWithTax = res.subjectList;
+      subjectMaster = res.subjectList.map(s => s.name);
+
+      allPendingList = res.pendingList;
+      populateApplicantFilter(res.pendingList);
+      populateBranchFilter(res.branches || []); // ★動的に拠点フィルタを更新
+      renderAdminCards(res.pendingList);
+    }).withFailureHandler(e => {
+      hideLoad(); showToast('取得失敗: ' + e.message, 'error');
+    }).getAdminDashboardData();
+  }
+
+  /**
+   * 各種レポート画面の拠点フィルタを生成
+   */
+  function populateBranchFilter(branches) {
+    const ids = ['reportBranchFilter', 'dailyReportBranchFilter', 'depBranch'];
+    ids.forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      const currentVal = sel.value;
+      sel.innerHTML = (id === 'depBranch' ? '<option value="">指定なし</option>' : '<option value="">全拠点</option>');
+      branches.forEach(b => {
+        const op = document.createElement('option');
+        op.value = b; op.text = b;
+        sel.appendChild(op);
+      });
+      sel.value = currentVal;
+    });
+  }
+
+  // XSS対策: HTMLエスケープ関数
+  function escapeHtml(str) {
+    if (typeof str !== 'string') return str;
+    return str.replace(/[&<>"']/g, function (match) {
+      return {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+      }[match];
+    });
+  }
+
+  // 共通カード生成関数 (AdminCardとPaymentCardで利用)
+  function createAdminCardElement(app, duplicateMap) {
+    const card = document.createElement('div');
+    card.className = 'admin-card';
+    card.id = 'card-' + app.appId;
+
+    const hasDuplicates = app.details.some(detail => {
+      const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
+      return duplicateMap && duplicateMap[key] && duplicateMap[key].length > 1;
+    });
+
+    if (hasDuplicates) {
+      card.classList.add('duplicate-warning');
+    }
+
+    const safeApplicant = escapeHtml(app.applicant);
+    const safeDept = escapeHtml(app.dept || '-');
+    const safeDate = escapeHtml(app.date || app.approvedAt);
+
+    const head = `
+        <div class="ac-header">
+          <div>
+            <div class="ac-user">${safeApplicant} <span class="ac-dept">${safeDept}</span></div>
+            <div style="font-size:0.8rem; color:#64748b;">${safeDate}</div>
+          </div>
+          <div class="ac-total">¥${Number(app.totalAmount).toLocaleString()}</div>
+        </div>
+      `;
+
+    let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
+    app.details.forEach(d => {
+      let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
+        subjectMaster.map(s => {
+          const safeS = escapeHtml(s);
+          return `<option value="${safeS}" ${s === d.subject ? 'selected' : ''}>${safeS}</option>`;
+        }).join('');
+
+      const imgId = `img-${d.detailId}`;
+      const detailKey = `${app.applicant}_${d.vendor}_${d.amount}`;
+      const isDuplicate = duplicateMap && duplicateMap[detailKey] && duplicateMap[detailKey].length > 1;
+
+      const invOpts = ['あり', 'なし', '不明'].map(v =>
+        `<option value="${v}" ${v === (d.invoiceReg || '不明') ? 'selected' : ''}>${v}</option>`
+      ).join('');
+
+      const taxOpts = [10, 8].map(t =>
+        `<option value="${t}" ${t === (d.taxRate || 10) ? 'selected' : ''}>${t}%</option>`
+      ).join('');
+
+      const safeVendor = escapeHtml(d.vendor || '');
+      const safePurpose = escapeHtml(d.purpose || '');
+
+      bodyHtml += `
+          <div class="detail-item" id="det-${d.detailId}" ${isDuplicate ? 'style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444; padding: 12px 0 12px 12px; box-sizing: border-box;"' : ''}>
+            ${isDuplicate ? '<div style="font-size: 0.8rem; color: #dc2626; font-weight: 700; margin-bottom: 8px;">⚠️ 重複の可能性があります</div>' : ''}
+            <div class="d-row">
+              <div class="d-thumb-box" onclick="zoomImage('${imgId}')">
+                <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" 
+                     src="${d.fileId ? 'https://drive.google.com/thumbnail?id=' + d.fileId + '&sz=w200' : ''}" 
+                     data-file-id="${d.fileId || ''}"
+                     loading="lazy"
+                     onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.6rem; color:#ccc;\'>No Image</span>';">
+                ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
+              </div>
+              <div class="d-inputs">
+                <div class="input-group-compact span-full">
+                  <label>利用日</label>
+                  <input type="date" class="d-date" value="${d.usageDate || ''}">
+                </div>
+                <div class="input-group-compact span-full">
+                  <label>店名</label>
+                  <input type="text" class="d-vendor" value="${safeVendor}" placeholder="店名">
+                </div>
+                <div class="input-group-compact">
+                  <label>金額（円）</label>
+                  <input type="number" class="d-amount" value="${d.amount}" placeholder="金額">
+                </div>
+                <div class="input-group-compact">
+                  <label>税率</label>
+                  <select class="d-taxrate">${taxOpts}</select>
+                </div>
+                <div class="input-group-compact">
+                  <label>科目</label>
+                  <select class="d-subject">${subOpts}</select>
+                </div>
+                <div class="input-group-compact">
+                  <label>インボイス登録</label>
+                  <select class="d-invoice">${invOpts}</select>
+                </div>
+                <div class="input-group-compact span-full">
+                  <label>備考・利用目的</label>
+                  <textarea class="d-purpose" placeholder="会議費、接待など" rows="1">${safePurpose}</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+    });
+    bodyHtml += '</div>';
+
+    card.innerHTML = head + bodyHtml;
+
+    const foot = document.createElement('div');
+    foot.className = 'ac-footer';
+
+    const btnRj = document.createElement('button');
+    btnRj.className = 'btn-rj';
+    btnRj.innerText = APP_CONST.STATUS.REJECTED;
+    btnRj.onclick = function () { openConfirm(app.appId, 'reject'); };
+
+    const btnRt = document.createElement('button');
+    btnRt.className = 'btn-rt';
+    btnRt.innerText = APP_CONST.STATUS.RETURNED;
+    btnRt.onclick = function () { openReturnModal(app.appId); };
+
+    const btnAp = document.createElement('button');
+    btnAp.className = 'btn-ap';
+    btnAp.innerText = '承認';
+    btnAp.onclick = function () { openConfirm(app.appId, 'approve'); };
+
+    foot.appendChild(btnRj);
+    foot.appendChild(btnRt);
+    foot.appendChild(btnAp);
+    card.appendChild(foot);
+
+    return card;
+  }
+
+
+  function renderAdminCards(list) {
+    const con = document.getElementById('cardContainer');
+    con.innerHTML = '';
+    if (!list || list.length === 0) {
+      con.innerHTML = `
+          <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
+          <div style="font-size:3rem; margin-bottom:16px;">✅</div>
+          <div>承認待ちの申請はありません</div>
+          <div style="font-size:1rem; margin-top:8px; opacity:0.6;">全ての申請が処理済みです</div>
+          </div>
+          `;
+      return;
+    }
+
+    // 重複チェック用のデータを準備
+    const duplicateMap = {};
+    list.forEach(app => {
+      app.details.forEach(detail => {
+        const key = `${app.applicant}_${detail.vendor}_${detail.amount} `;
+        if (!duplicateMap[key]) {
+          duplicateMap[key] = [];
+        }
+        duplicateMap[key].push({ appId: app.appId, detailId: detail.detailId });
+      });
+    });
+
+    // 画像一括取得用リスト
+    const allFileIds = [];
+
+    list.forEach(app => {
+      // Collect Image IDs
+      app.details.forEach(d => {
+        if (d.hasImage && d.fileId) allFileIds.push(d.fileId);
+      });
+
+      const card = createAdminCardElement(app, duplicateMap);
+      con.appendChild(card);
+    });
+
+    /* Batch fetch disabled for performance
+    if (allFileIds.length > 0) {
+      google.script.run.withSuccessHandler(imgMap => {
+        Object.keys(imgMap).forEach(fid => {
+          const b64 = imgMap[fid];
+          const targets = document.querySelectorAll(`img[data-file-id="${fid}"]`);
+          targets.forEach(img => {
+            if (b64) {
+              img.src = b64;
+            } else {
+              // エラー時
+              img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#ef4444; font-size:0.8rem;">読込エラー</div>';
+            }
+          });
+        });
+      }).api_getImagesBatch(allFileIds);
+    }
+    */
+  }
+
+  function loadOneImage(fileId, imgDomId) {
+    google.script.run.withSuccessHandler(b64 => {
+      const img = document.getElementById(imgDomId);
+      if (!img) return;
+      if (b64) {
+        img.src = b64;
+      } else {
+        // 読み込み失敗時のプレースホルダー
+        img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#94a3b8; font-size:0.8rem;">画像なし</div>';
+      }
+    }).withFailureHandler(e => {
+      const img = document.getElementById(imgDomId);
+      if (img) img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#ef4444; font-size:0.8rem;">読込エラー</div>';
+    }).api_getReceiptImage(fileId);
+  }
+
+  function openConfirm(appId, action) {
+    pendingAppId = appId;
+    pendingAction = action;
+    const msg = action === 'approve' ? 'この内容で承認しますか？' : '却下しますか？';
+    document.getElementById('confirmMsg').innerText = msg;
+    const yesBtn = document.getElementById('confirmYesBtn');
+    yesBtn.onclick = function () { execProcess(); };
+    document.getElementById('confirmToast').style.display = 'flex';
+  }
+
+  function closeConfirm() {
+    document.getElementById('confirmToast').style.display = 'none';
+    pendingAppId = null;
+    pendingAction = null;
+  }
+
+  function execProcess() {
+    const appId = pendingAppId;
+    const action = pendingAction;
+    closeConfirm();
+
+    const card = document.getElementById('card-' + appId);
+    const details = [];
+    card.querySelectorAll('.detail-item').forEach(row => {
+      const dId = row.id.replace('det-', '');
+      const date = row.querySelector('.d-date').value;
+      const sub = row.querySelector('.d-subject').value;
+      const ven = row.querySelector('.d-vendor').value;
+      const amt = row.querySelector('.d-amount').value;
+      const tax = row.querySelector('.d-taxrate').value;
+      const inv = row.querySelector('.d-invoice').value;
+      const pur = row.querySelector('.d-purpose').value;
+      details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
+    });
+
+    card.style.transition = 'opacity 0.3s, transform 0.3s';
+    card.style.opacity = '0';
+    card.style.transform = 'translateY(-20px)';
+    setTimeout(() => card.remove(), 300);
+
+    google.script.run.withSuccessHandler(() => {
+      showToast('処理完了');
+      if (typeof closeHistoryEdit === 'function') closeHistoryEdit();
+    }).withFailureHandler(e => {
+      showToast('エラー: ' + e.message, 'error');
+    }).processApplicationWithEdit(appId, action, details);
+  }
+
+  function openReturnModal(appId) {
+    pendingAppId = appId;
+    document.getElementById('returnComment').value = '';
+    document.getElementById('returnModal').style.display = 'flex';
+  }
+
+  function closeReturnModal() {
+    document.getElementById('returnModal').style.display = 'none';
+    pendingAppId = null;
+  }
+
+  function execReturn() {
+    const appId = pendingAppId;
+    const comment = document.getElementById('returnComment').value;
+    closeReturnModal();
+
+    const card = document.getElementById('card-' + appId);
+    const details = [];
+    card.querySelectorAll('.detail-item').forEach(row => {
+      const dId = row.id.replace('det-', '');
+      const date = row.querySelector('.d-date').value;
+      const sub = row.querySelector('.d-subject').value;
+      const ven = row.querySelector('.d-vendor').value;
+      const amt = row.querySelector('.d-amount').value;
+      const tax = row.querySelector('.d-taxrate').value;
+      const inv = row.querySelector('.d-invoice').value;
+      const pur = row.querySelector('.d-purpose').value;
+      details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
+    });
+
+    card.style.transform = 'translateY(-20px)';
+    setTimeout(() => card.remove(), 300);
+
+    google.script.run.withSuccessHandler(() => {
+      showToast('差し戻しを実行しました');
+      if (typeof closeHistoryEdit === 'function') closeHistoryEdit();
+    }).withFailureHandler(e => {
+      showToast('エラー: ' + e.message, 'error');
+    }).processReturn(appId, comment, details);
+  }
+
+  // 画像拡大表示 (修正)
+  function zoomImage(imgIdOrElementId) {
+    const img = document.getElementById(imgIdOrElementId);
+    if (img && img.src) {
+      zoomImageSrc(img.src);
+    }
+  }
+
+  function zoomImageSrc(src) {
+    document.getElementById('zoomImg').src = src;
+    document.getElementById('imageModal').style.display = 'flex';
+  }
+
+  // 科目マスタ
+  // 科目マスタ
+  let editingSubjectName = null;
+
+  function openSubjectMaster() {
+    // 一覧描画は loadAdminData で取得済み assuming subjectMasterWithTax has the data
+    renderSubjectList();
+    resetSubjectInputs();
+    document.getElementById('subjectModal').style.display = 'flex';
+  }
+
+  function closeSubjectMaster() {
+    document.getElementById('subjectModal').style.display = 'none';
+    resetSubjectInputs();
+  }
+
+  function resetSubjectInputs() {
+    document.getElementById('newSubject').value = '';
+    document.getElementById('newTax').value = '10';
+    document.getElementById('newKw').value = '';
+    editingSubjectName = null;
+    document.getElementById('updateSubBtn').style.display = 'none';
+    document.getElementById('addSubBtn').style.display = 'inline-block';
+  }
+
+  function renderSubjectList() {
+    const div = document.getElementById('subjectListDiv');
+    // subjectMasterWithTax は {name, taxRate, keywords} の配列が入っている前提
+    // loadAdminData で res.subjectList (これは以前は名前配列だったが、Object配列になった) を受け取る必要がある
+    const list = subjectMasterWithTax; // initDataやloadAdminDataで更新される
+
+    if (!list || list.length === 0) {
+      div.innerHTML = '<div style="color:#94a3b8; text-align:center;">なし</div>';
+      return;
+    }
+
+    div.innerHTML = list.map(s => {
+      // s が文字列の場合（古いデータ互換）とオブジェクトの場合を考慮
+      const name = s.name || s;
+      const tax = s.taxRate || 10;
+      return `<div class="master-item">
+            <div style="flex:1;">
+                <div style="font-weight:bold;">${name}</div>
+                <div style="font-size:0.8rem; color:#64748b;">税率: ${tax}%</div>
+            </div>
+            <button onclick="startEditSubject('${name}', ${tax}, '${s.keywords || ''}')" style="margin-right:8px; padding:4px 8px; border:1px solid #cbd5e1; background:white; border-radius:4px;">編集</button>
+            <span class="del-sub" onclick="delSubject('${name}')" style="color:red; cursor:pointer; padding:4px;">✕</span>
+          </div>`;
+    }).join('');
+  }
+
+  function startEditSubject(name, tax, kw) {
+    editingSubjectName = name;
+    document.getElementById('newSubject').value = name;
+    document.getElementById('newTax').value = tax;
+    document.getElementById('newKw').value = kw;
+    document.getElementById('updateSubBtn').style.display = 'inline-block';
+    document.getElementById('addSubBtn').style.display = 'none';
+  }
+
+  function addSubject() {
+    const name = document.getElementById('newSubject').value;
+    const tax = document.getElementById('newTax').value;
+    const kw = document.getElementById('newKw').value;
+    if (!name) return;
+
+    showLoad('追加中...');
+    google.script.run.withSuccessHandler(list => {
+      hideLoad();
+      showToast('科目を追加しました');
+      // 返却値をグローバル変数に反映
+      updateSubjectGlobal(list);
+      renderSubjectList();
+      resetSubjectInputs();
+    }).withFailureHandler(e => {
+      hideLoad();
+      showToast('エラー: ' + e.message, 'error');
+    }).api_addSubject(name, tax, kw);
+  }
+
+  function updateSubject() {
+    if (!editingSubjectName) return;
+    const name = document.getElementById('newSubject').value;
+    const tax = document.getElementById('newTax').value;
+    const kw = document.getElementById('newKw').value;
+
+    showLoad('更新中...');
+    google.script.run.withSuccessHandler(list => {
+      hideLoad();
+      showToast('科目を更新しました');
+      updateSubjectGlobal(list);
+      renderSubjectList();
+      resetSubjectInputs();
+    }).withFailureHandler(e => {
+      hideLoad();
+      showToast('エラー: ' + e.message, 'error');
+    }).api_updateSubject(editingSubjectName, name, tax, kw);
+  }
+
+  function delSubject(val) {
+    showConfirm(`科目「${val}」を削除しますか？`, () => {
+      showLoad('削除中...');
+      google.script.run.withSuccessHandler(list => {
+        hideLoad();
+        showToast('科目を削除しました');
+        updateSubjectGlobal(list);
+        renderSubjectList();
+      }).withFailureHandler(e => {
+        hideLoad();
+        showToast('エラー: ' + e.message, 'error');
+      }).api_deleteSubject(val);
+    });
+  }
+
+  function updateSubjectGlobal(list) {
+    // リストは {name, taxRate, keywords} の配列
+    subjectMasterWithTax = list;
+    // 単純な名前リストも更新しておく（互換性）
+    subjectMaster = list.map(s => s.name);
+  }
+
+  function showLoad(txt) { document.getElementById('loadText').innerText = txt; document.getElementById('loadingOverlay').style.display = 'flex'; }
+  function hideLoad() { document.getElementById('loadingOverlay').style.display = 'none'; }
+  function showToast(msg, type = 'normal') {
+    const t = document.getElementById('toast');
+    t.innerText = msg;
+    t.className = ''; // Reset classes
+
+    // Add specific class based on type
+    let cls = 'show';
+    if (type === 'error') cls += ' error';
+    if (type === 'success') cls += ' success';
+
+    // Slight delay to allow reset to take effect if called rapidly? Use requestAnimationFrame if strict, but setTimeout is ok.
+    // Actually just setting class works.
+    t.className = cls;
+
+    setTimeout(() => { t.classList.remove('show'); }, 3000);
+  }
+
+
+  // ========== フィルター機能 ==========
+  function populateApplicantFilter(pendingList) {
+    const filter = document.getElementById('applicantFilter');
+    const applicants = [...new Set(pendingList.map(app => app.applicant))].sort();
+
+    // 既存のオプションを削除（「全ての申請者」以外）
+    while (filter.children.length > 1) {
+      filter.removeChild(filter.lastChild);
+    }
+
+    // 申請者リストを追加
+    applicants.forEach(name => {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      filter.appendChild(option);
+    });
+
+    // フィルターイベントを設定
+    filter.onchange = applyApplicantFilter;
+  }
+
+  function applyApplicantFilter() {
+    const selectedApplicant = document.getElementById('applicantFilter').value;
+    const filteredList = selectedApplicant
+      ? allPendingList.filter(app => app.applicant === selectedApplicant)
+      : allPendingList;
+
+    // 合計金額を計算
+    const totalAmount = filteredList.reduce((sum, app) => sum + Number(app.totalAmount || 0), 0);
+
+    // 合計金額表示の更新
+    const totalDisplay = document.getElementById('filterTotalDisplay');
+    const totalSpan = document.getElementById('filterTotal');
+
+    if (selectedApplicant && filteredList.length > 0) {
+      totalSpan.textContent = totalAmount.toLocaleString();
+      totalDisplay.style.display = 'block';
+    } else {
+      totalDisplay.style.display = 'none';
+    }
+
+    renderAdminCards(filteredList);
+  }
+
+  function showHelp() {
+    document.getElementById('helpModal').style.display = 'flex';
+  }
+  function closeHelp() {
+    document.getElementById('helpModal').style.display = 'none';
+  }
+  // --- 入金登録モーダル ---
+  function openDepositModal() {
+    document.getElementById('depositModal').style.display = 'flex';
+    document.getElementById('depDate').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('depAmt').value = '';
+    document.getElementById('depMemo').value = '';
+  }
+
+  function closeDepositModal() {
+    document.getElementById('depositModal').style.display = 'none';
+  }
+
+  function registerDeposit() {
+    const type = document.getElementById('depType').value;
+    const date = document.getElementById('depDate').value;
+    const amt = document.getElementById('depAmt').value;
+    const memo = document.getElementById('depMemo').value;
+    const branch = document.getElementById('depBranch').value;
+
+    if (!date || !amt) {
+      showToast('日付と金額は必須です', 'error');
+      return;
+    }
+
+    showLoad('登録処理中...');
+    google.script.run.withSuccessHandler(res => {
+      hideLoad();
+      closeDepositModal();
+      showToast(type + 'を登録しました');
+    }).withFailureHandler(e => {
+      hideLoad();
+      showToast('エラー: ' + e.message, 'error');
+    }).api_registerDeposit(date, Number(amt), memo, type, branch);
+  }
+
+  // ========== 支払い管理機能 ==========
+  function loadPaymentList() {
+    const startPicker = document.getElementById('paymentStartDatePicker');
+    const endPicker = document.getElementById('paymentEndDatePicker');
+
+    // 初期値設定 (未入力の場合、今月1日〜今日)
+    if (!startPicker.value || !endPicker.value) {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = now.getMonth() + 1;
+      const mStr = m < 10 ? '0' + m : m;
+      const d = now.getDate();
+      const dStr = d < 10 ? '0' + d : d;
+
+      if (!startPicker.value) startPicker.value = `${y}-${mStr}-01`;
+      if (!endPicker.value) endPicker.value = `${y}-${mStr}-${dStr}`;
+    }
+
+    const sDate = startPicker.value;
+    const eDate = endPicker.value;
+    const el = document.getElementById('paymentListContainer');
+    el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
+
+    // フィルターリセット
+    document.getElementById('paymentApplicantFilter').value = '';
+    document.getElementById('paymentStatusFilter').value = '';
+    document.getElementById('paymentSummaryArea').style.display = 'none';
+
+    console.log('Fetching payment list for range:', sDate, 'to', eDate);
+
+    google.script.run.withSuccessHandler(list => {
+      console.log('Payment list received:', list);
+      lastPaymentList = list; // Store the list globally
+
+      // 申請者リストを動的生成
+      populatePaymentApplicantFilter(list);
+
+      renderPaymentHistoryCards(list);
+      updatePaymentSummary(list);
+    }).withFailureHandler(e => {
+      console.error('Payment list fetch failed:', e);
+      el.innerHTML = 'エラー発生: ' + e.message;
+      showToast(e.message, 'error');
+    }).api_getPaymentList(sDate, eDate);
+  }
+
+  function populatePaymentApplicantFilter(list) {
+    const sel = document.getElementById('paymentApplicantFilter');
+    // 既存オプションをクリア (最初の「全員」は残す)
+    while (sel.options.length > 1) sel.remove(1);
+
+    // ユニークな申請者を抽出
+    const applicants = [...new Set(list.map(a => a.applicant))].sort();
+    applicants.forEach(name => {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      sel.appendChild(opt);
+    });
+  }
+
+  function filterPaymentList() {
+    const applicantFilter = document.getElementById('paymentApplicantFilter').value;
+    const statusFilter = document.getElementById('paymentStatusFilter').value;
+
+    // Nullチェック
+    if (!lastPaymentList || lastPaymentList.length === 0) {
+      renderPaymentHistoryCards([]);
+      updatePaymentSummary([], applicantFilter, statusFilter);
+      return;
+    }
+
+    // フィルタリング
+    let filtered = lastPaymentList.filter(app => {
+      if (applicantFilter && app.applicant !== applicantFilter) return false;
+      if (statusFilter) {
+        const isPaid = (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID);
+        if (statusFilter === APP_CONST.PAYMENT_STATUS.UNPAID && isPaid) return false;
+        if (statusFilter === APP_CONST.PAYMENT_STATUS.PAID && !isPaid) return false;
+      }
+      return true;
+    });
+
+    renderPaymentHistoryCards(filtered);
+    updatePaymentSummary(filtered, applicantFilter, statusFilter);
+  }
+
+  function updatePaymentSummary(list, applicantFilter, statusFilter) {
+    const summaryArea = document.getElementById('paymentSummaryArea');
+    const labelEl = document.getElementById('paymentSummaryLabel');
+    const totalEl = document.getElementById('paymentSummaryTotal');
+    const unpaidEl = document.getElementById('paymentSummaryUnpaid');
+    const paidEl = document.getElementById('paymentSummaryPaid');
+    const countEl = document.getElementById('paymentSummaryCount');
+
+    if (!list || list.length === 0) {
+      summaryArea.style.display = 'none';
+      return;
+    }
+
+    let totalAmount = 0;
+    let unpaidAmount = 0;
+    let paidAmount = 0;
+
+    list.forEach(app => {
+      const amt = Number(app.totalAmount) || 0;
+      totalAmount += amt;
+      if (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID) {
+        paidAmount += amt;
+      } else {
+        unpaidAmount += amt;
+      }
+    });
+
+    // ラベル生成 (不要になったので簡略化、もしくは削除でも良いが、念のためconsoleに残す)
+    console.log(`Summary updated for: ${applicantFilter || 'All'} / ${statusFilter || 'All'}`);
+
+    totalEl.textContent = '¥' + totalAmount.toLocaleString();
+    unpaidEl.textContent = '¥' + unpaidAmount.toLocaleString();
+    paidEl.textContent = '¥' + paidAmount.toLocaleString();
+    countEl.textContent = list.length + '件';
+
+    // Grid display (change from block to grid)
+    summaryArea.style.display = 'grid';
+  }
+
+
+  function renderPaymentHistoryCards(list) {
+    console.log('Rendering cards with list:', list);
+    const con = document.getElementById('paymentListContainer');
+    con.innerHTML = '';
+    if (!list || list.length === 0) {
+      console.log('List is empty or null');
+      con.innerHTML = '<div style="text-align:center; color:#94a3b8;">対象データがありません</div>';
+      return;
+    }
+
+    // 画像一括取得用リスト
+    const allFileIds = [];
+
+    list.forEach((app, index) => {
+
+      const card = document.createElement('div');
+      card.className = 'admin-card';
+      card.id = 'pay-card-' + app.appId;
+
+      const isPaid = (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID);
+      // ステータス判定の堅牢化 (正規表現で判定)
+      const st = String(app.status || '');
+      // ステータス判定の堅牢化 (定数ベース)
+      const approvedStatuses = [
+        APP_CONST.STATUS.APPROVED,
+        APP_CONST.STATUS.FIXED,
+        APP_CONST.PAYMENT_STATUS.PAID,
+        'APPROVED', 'FIXED' // 後方互換
+      ];
+      const isAppApproved = approvedStatuses.includes(st) || /承認済み/i.test(st); // "承認済み"揺らぎ対応
+
+      const rejectedStatuses = [
+        APP_CONST.STATUS.REJECTED,
+        'REJECTED'
+      ];
+      const isAppRejected = rejectedStatuses.includes(st);
+
+      // 支払状態トグルボタン (Switch Style)
+      // 入金・出金・調整は支払対象外なので非表示
+      const isDeposit = String(app.appId).startsWith('DEP-');
+      let payBtnHtml = '';
+      if (!isAppRejected && !isDeposit) {
+        payBtnHtml = `<button onclick="event.stopPropagation(); togglePayment('${app.appId}', ${!isPaid})" style="font-size:0.85rem; padding:6px 16px; border-radius:20px; border:none; background:${isPaid ? '#f1f5f9' : '#10b981'}; color:${isPaid ? '#64748b' : 'white'}; font-weight:700; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.05); transition:all 0.2s;">
+            ${isPaid ? '支払済に戻す' : '支払済にする'}
+          </button>`;
+      }
+
+      // 詳細・修正ボタン (Icon Only on Mobile? No, keep text for clarity but make it cleaner)
+      // const editBtnHtml = ... (Not used in header anymore)
+
+      // ステータスチップ
+      let statusChip = '';
+      if (isAppRejected) statusChip = `<span class="pay-status-chip rejected">却下</span>`;
+      else if (isPaid) statusChip = `<span class="pay-status-chip paid">支払済</span>`;
+      else statusChip = `<span class="pay-status-chip unpaid">未払い</span>`;
+
+      const head = `
+          <div class="pay-card-header" onclick="openHistoryEdit('${app.appId}')" style="cursor:pointer;">
+              <div>
+                <div style="font-weight:bold; font-size:1.05rem; color:#1e293b; display:flex; align-items:center; gap:8px;">
+                  ${app.applicant}
+                  ${statusChip}
+                </div>
+                <div style="font-size:0.8rem; color:#94a3b8; margin-top:2px;">${app.approvedAt} <span style="margin-left:8px; opacity:0.7;">${app.dept || ''}</span></div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+                 <div class="ac-total" style="font-size:1.4rem;">¥${Number(app.totalAmount).toLocaleString()}</div>
+                 ${payBtnHtml}
+              </div>
+            </div>
+          `;
+
+      // ボディ生成 (AdminCardとほぼ同じだが、入力はdisabledにする)
+      let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px; display:none;" id="pay-body-' + app.appId + '">';
+
+      // 詳細が無い場合のガード
+      const details = app.details || [];
+
+      details.forEach(d => {
+        // N+1対策: ファイルIDを収集
+        if (d.hasImage && d.fileId) {
+          allFileIds.push(d.fileId);
+        }
+        const imgId = `p-img-${d.detailId}`;
+
+        bodyHtml += `
+          <div class="detail-item">
+            <div class="d-row">
+              <div class="d-thumb-box" onclick="zoomImage('${imgId}')">
+                <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" src="" data-file-id="${d.fileId || ''}">
+                  ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
+              </div>
+              <div class="d-inputs">
+                <div class="input-group-compact span-full">
+                  <label>利用日</label>
+                  <div style="padding:4px; font-weight:bold;">${d.usageDate}</div>
+                </div>
+                <div class="input-group-compact span-full">
+                  <label>店名</label>
+                  <div style="padding:4px;">${d.vendor}</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>金額</label>
+                  <div style="padding:4px;">¥${Number(d.amount).toLocaleString()}</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>税率</label>
+                  <div style="padding:4px;">${d.taxRate}%</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>科目</label>
+                  <div style="padding:4px;">${d.subject}</div>
+                </div>
+                <div class="input-group-compact">
+                  <label>インボイス</label>
+                  <div style="padding:4px;">${d.invoiceReg}</div>
+                </div>
+                <div class="input-group-compact span-full">
+                  <label>備考</label>
+                  <div style="padding:4px; font-size:0.9rem; color:#666;">${d.purpose || '-'}</div>
+                </div>
+              </div>
+            </div>
+              </div>
+          `;
+      });
+      bodyHtml += '</div>';
+
+      /* Old Footer (Status Bar) is no longer needed since we have Status Chips in Header.
+       * Removing it to clean up UI.
+       */
+      const fullHtml = head + bodyHtml;
+      card.innerHTML = fullHtml;
+      con.appendChild(card);
+    });
+
+    // 画像取得
+    if (allFileIds.length > 0) {
+      google.script.run.withSuccessHandler(imgMap => {
+        Object.keys(imgMap).forEach(fid => {
+          const b64 = imgMap[fid];
+          const targets = document.querySelectorAll(`img[data-file-id="${fid}"]`);
+          targets.forEach(img => {
+            if (b64) img.src = b64;
+            else img.parentNode.innerHTML = '<div style="font-size:0.7rem; color:red; text-align:center; padding-top:20px;">Load Error</div>';
+          });
+        });
+      }).withFailureHandler(e => { console.log('Image load fail', e); }); //.api_getImagesBatch(allFileIds);
+    }
+  }
+
+  function togglePayment(appId, toPaid) {
+    showConfirm(toPaid ? '「支払済」にしますか？' : '「未払い」に戻しますか？', () => {
+      const newStatus = toPaid ? APP_CONST.PAYMENT_STATUS.PAID : APP_CONST.PAYMENT_STATUS.UNPAID;
+
+      showLoad('更新中...');
+      google.script.run.withSuccessHandler(res => {
+        hideLoad();
+        showToast('更新しました');
+        // リロードして反映
+        loadPaymentList();
+      }).withFailureHandler(e => {
+        hideLoad();
+        showToast('更新失敗: ' + e.message, 'error');
+      }).api_updatePaymentStatus([appId], newStatus);
+    });
+  }
+
+
+  function showDetailModal(appId) {
+    // 古い関数だが念のため残すか、不要なら削除。
+    // 今回はカード表示にしたので不要だが、後方互換でエラーにならないよう空にしておくか放置。
+  }
+
+  // History Edit Logic
+  function openHistoryEdit(appId) {
+    const app = lastPaymentList.find(a => a.appId === appId);
+    if (!app) {
+      showToast('データが見つかりません', 'error');
+      return;
+    }
+
+    const modal = document.getElementById('historyEditModal');
+    const con = document.getElementById('historyEditContent');
+    con.innerHTML = '';
+
+    // createAdminCardElement を呼び出す際に、duplicateMap は空オブジェクトを渡す
+    // 支払い履歴からの編集では重複チェックは不要なため
+    const card = createAdminCardElement(app, {});
+    con.appendChild(card);
+
+    // Trigger Image Load
+    const allFileIds = [];
+    app.details.forEach(d => { if (d.hasImage && d.fileId) allFileIds.push(d.fileId); });
+    /*
+    if (allFileIds.length > 0) {
+      google.script.run.withSuccessHandler(imgMap => {
+        Object.keys(imgMap).forEach(fid => {
+          const b64 = imgMap[fid];
+          const targets = modal.querySelectorAll(`img[data-file-id="${fid}"]`);
+          targets.forEach(img => { if (b64) img.src = b64; });
+        });
+      }).api_getImagesBatch(allFileIds);
+    }
+    */
+
+    modal.style.display = 'flex';
+  }
+
+  function closeHistoryEdit() {
+    document.getElementById('historyEditModal').style.display = 'none';
+    // Reload list to reflect changes
+    loadPaymentList();
+  }
+
+</script>

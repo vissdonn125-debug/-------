@@ -1,0 +1,1833 @@
+﻿<style>
+  /* ========== ベース設定 ========== */
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --accent: #f59e0b;
+    --bg: #f8fafc;
+    --text: #0f172a;
+    --sub-text: #64748b;
+    --border: #e2e8f0;
+    /* セーフエリアの初期値（未対応ブラウザ用） */
+    --safe-top: 20px;
+    --safe-bottom: 20px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  }
+
+  /* iPhone等のセーフエリア取得 */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    :root {
+      --safe-top: env(safe-area-inset-top);
+      --safe-bottom: env(safe-area-inset-bottom);
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    outline: none;
+  }
+
+  html {
+    height: 100%;
+    overflow: hidden;
+    /* Default: fixed viewport for App mode */
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100dvh;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+    color: var(--text);
+    font-size: 16px;
+    /* Reduced from 18px */
+    overflow: hidden;
+    /* Default: internal scroll */
+  }
+
+  /* アプリ全体レイアウト */
+  .app-root {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding-top: var(--safe-top);
+    /* padding-bottomは個別のビューで制御するため削除 */
+  }
+
+  .view-section {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    /* Default: internal scroll */
+    height: 100%;
+    /* Default: fill viewport */
+    position: relative;
+  }
+
+  /* Admin View: Allow auto height for global scroll */
+  #adminView.view-section {
+    height: auto;
+    overflow: visible;
+  }
+
+  .view-section.active {
+    display: flex;
+  }
+
+  /* ========== ヘッダー ========== */
+  header {
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    height: 60px;
+    /* Reduced from 80px */
+    padding: 0 16px;
+    /* Reduced padding */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    /* Reduced gap */
+    z-index: 20;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    /* Reduced from 1.7rem */
+    font-weight: 800;
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    white-space: nowrap;
+    letter-spacing: -0.01em;
+  }
+
+  #applicantSelector {
+    flex: 1;
+    min-width: 0;
+    height: 52px;
+    padding: 0 20px;
+    border-radius: 14px;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    font-size: 1.2rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, rgba(241, 245, 249, 0.9), rgba(255, 255, 255, 0.9));
+    color: var(--text);
+    backdrop-filter: blur(8px);
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23007CB2%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat;
+    background-position: right 20px top 50%;
+    background-size: 16px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s;
+  }
+
+  #applicantSelector:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+
+  .help-btn {
+    width: 40px;
+    /* Reduced from 48px */
+    height: 40px;
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    /* Reduced */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+    transition: all 0.2s;
+  }
+
+  .help-btn:active {
+    transform: scale(0.95);
+  }
+
+  .admin-switch-btn {
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #475569, #334155);
+    color: white;
+    border: none;
+    border-radius: 14px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: none;
+    box-shadow: 0 3px 10px rgba(71, 85, 105, 0.3);
+    transition: all 0.2s;
+    min-height: 52px;
+  }
+
+  .admin-switch-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* ========== ユーザー画面 ========== */
+  .user-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #f1f5f9;
+    position: relative;
+    /* フッターが重ならないように下部に余白を持たせる */
+  }
+
+  .cart-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 16px;
+    /* 下部ドックの高さ(約120px) + セーフエリア分の余白 */
+    padding-bottom: calc(140px + var(--safe-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cart-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60%;
+    color: var(--sub-text);
+    gap: 2rem;
+    text-align: center;
+    padding: 2rem;
+  }
+
+  .cart-empty::before {
+    content: "📸";
+    font-size: 5rem;
+    opacity: 0.7;
+  }
+
+  .cart-empty::after {
+    content: "レシートを撮影して\A経費申請を始めましょう";
+    white-space: pre-line;
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1.6;
+    color: #64748b;
+  }
+
+  /* カードデザイン */
+  .cart-item {
+    background: white;
+    border-radius: 16px;
+    /* Slightly reduced */
+    padding: 12px;
+    /* Reduced from 20px */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    /* Reduced from 16px */
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.04);
+    transition: transform 0.1s, box-shadow 0.2s;
+    border: 1px solid rgba(0, 0, 0, 0.04);
+  }
+
+  .cart-item:active {
+    transform: scale(0.98);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .cart-item-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+  }
+
+  .cart-item-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cart-item-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 12px;
+    border-top: 1px solid #f1f5f9;
+  }
+
+  .cart-thumb-box {
+    width: 60px;
+    /* Reduced from 80px */
+    height: 60px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f1f5f9;
+    position: relative;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .cart-thumb {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .cart-info {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    /* Reduced from 6px */
+  }
+
+  .cart-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9rem;
+    color: var(--sub-text);
+    margin-bottom: 2px;
+  }
+
+  .status-badge {
+    padding: 4px 10px;
+    /* Reduced */
+    border-radius: 8px;
+    background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+    color: var(--primary);
+    font-weight: 700;
+    white-space: nowrap;
+    font-size: 0.85rem;
+    /* Reduced */
+    box-shadow: 0 1px 3px rgba(37, 99, 235, 0.2);
+  }
+
+  .cart-vendor {
+    font-weight: 700;
+    font-size: 1.1rem;
+    /* Reduced from 1.3rem */
+    color: #1e293b;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+  }
+
+  .cart-amount {
+    font-size: 1.4rem;
+    /* Reduced from 1.8rem */
+    font-weight: 900;
+    color: #059669;
+    text-align: right;
+    letter-spacing: -0.02em;
+  }
+
+  .cart-amount.zero {
+    color: #cbd5e1;
+    font-size: 1.2rem;
+  }
+
+  .cart-del-btn {
+    padding: 10px 14px;
+    /* Reduced */
+    background: #fef2f2;
+    color: #dc2626;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    /* Added */
+    font-size: 1.1rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s;
+    min-height: 52px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .cart-del-btn:active {
+    background: #fee2e2;
+    transform: scale(0.95);
+  }
+
+  .analyzing-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .mini-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid #ddd;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  /* ========== ユーザー画面：下部操作ドック ========== */
+  .operation-dock {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.95));
+    backdrop-filter: blur(20px);
+    padding: 12px 16px;
+    /* Reduced from 20px 24px */
+    padding-bottom: calc(16px + var(--safe-bottom));
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    z-index: 50;
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .dock-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .dock-bottom {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+
+  .total-block {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .total-label {
+    font-size: 0.85rem;
+    /* Reduced */
+    color: var(--sub-text);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  .total-price {
+    font-size: 1.5rem;
+    /* Reduced from 2.2rem */
+    font-weight: 900;
+    line-height: 1.1;
+    color: #059669;
+    letter-spacing: -0.02em;
+  }
+
+  .camera-launch-btn {
+    padding: 8px 16px;
+    height: 44px;
+    /* Reduced from 56px */
+    border-radius: 22px;
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    color: white;
+    font-size: 0.95rem;
+    /* Reduced from 1.8rem */
+    font-weight: 600;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    min-width: 90px;
+    /* Flexible width */
+  }
+
+  .camera-launch-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.5);
+  }
+
+  .apply-btn {
+    flex: 1;
+    height: 60px;
+    background: linear-gradient(135deg, #059669, #047857);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-weight: 700;
+    font-size: 1.3rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3), 0 2px 4px rgba(5, 150, 105, 0.2);
+    transition: all 0.2s;
+  }
+
+  .apply-btn:disabled {
+    background: #e2e8f0;
+    color: #94a3b8;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .apply-btn:not(:disabled):active {
+    background: linear-gradient(135deg, #047857, #065f46);
+    transform: scale(0.98);
+  }
+
+  /* ========== 管理者画面（修正箇所） ========== */
+  .admin-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #334155;
+    overflow: hidden;
+    /* コンテナ自体はスクロールさせない */
+    position: relative;
+  }
+
+  .admin-tools {
+    flex: 0 0 auto;
+    padding: 20px 24px;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .tool-btn {
+    font-size: 1rem;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+    min-height: 44px;
+    box-shadow: 0 3px 10px rgba(59, 130, 246, 0.3);
+  }
+
+  .tool-btn:active {
+    transform: scale(0.95);
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  }
+
+  .card-container {
+    /* flex: 1; */
+    width: 100%;
+    /* overflow-y: auto; */
+    /* overflow-x: hidden; */
+    overflow: visible;
+    padding: 24px;
+    /* フッター分確保 */
+    display: grid;
+    /* PC: 2カラム固定 */
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-content: start;
+  }
+
+  /* モバイル・タブレットは1カラム */
+  @media (max-width: 900px) {
+    .card-container {
+      grid-template-columns: 1fr;
+    }
+  }
+
+
+  .admin-card {
+    width: 100%;
+    /* Gridにお任せ */
+    max-width: none;
+    height: auto;
+    /* コンテンツに合わせて高さ自動 */
+    min-height: auto;
+    scroll-snap-align: start;
+    background: white;
+
+    border-radius: 16px;
+    /* スタイリッシュな影 */
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
+      0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    transition: transform 0.2s;
+  }
+
+
+
+  .ac-header {
+    flex: 0 0 auto;
+    padding: 20px;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .ac-user {
+    font-size: 1.1rem;
+    font-weight: 900;
+    line-height: 1.3;
+  }
+
+  .ac-total {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--primary);
+  }
+
+  .ac-dept {
+    font-size: 0.75rem;
+    background: linear-gradient(135deg, #e0e7ff, #c7d2fe);
+    padding: 4px 8px;
+    border-radius: 6px;
+    color: #3730a3;
+    display: inline-block;
+    margin-left: 6px;
+    font-weight: 600;
+  }
+
+  .ac-body {
+    /* flex: 1; */
+    /* overflow-y: auto; */
+    /* overflow-x: hidden; */
+    overflow: visible;
+    /* スクロールさせず高さを伸ばす */
+    padding: 16px;
+  }
+
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+    border-bottom: 1px dashed #e2e8f0;
+    padding-bottom: 16px;
+
+    /* 2カラムレイアウト用 (厳密) -> 視認性重視で1カラムに戻すが、カード自体の2列配置は維持 */
+    width: 100%;
+    /* 幅が確保できなくても2列にするため min-width を下げる */
+    min-width: 0;
+    /* flex: 0 0 calc(50% - 6px); */
+    flex: 1;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid #f1f5f9;
+    padding: 12px;
+    /* padding: 8px; */
+    background: #f8fafc;
+    /* 高さ揃え */
+    height: 100%;
+  }
+
+  .input-group-compact {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .input-group-compact label {
+    flex: 0 0 70px;
+    /* ラベル幅固定 */
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    white-space: nowrap;
+    text-align: right;
+  }
+
+  .d-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .d-thumb-box {
+    width: 120px;
+    /* PC: 横幅固定 */
+    height: auto;
+    min-height: 160px;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    flex-shrink: 0;
+    align-self: stretch;
+    /* 高さいっぱいに */
+  }
+
+  .d-inputs {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    /* 間隔調整 */
+    min-width: 0;
+  }
+
+  /* 2列またぎ用クラス */
+  .span-full {
+    grid-column: 1 / -1;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    padding: 6px 8px;
+    /* パディング縮小 */
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    border-radius: 6px;
+    /* 半径も少し小さく */
+    font-size: 0.85rem;
+    /* 文字サイズ縮小 */
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.8));
+    backdrop-filter: blur(8px);
+    transition: all 0.2s;
+    min-height: 32px;
+    /* 高さ縮小 */
+    box-sizing: border-box;
+    color: var(--text);
+  }
+
+  textarea {
+    font-family: inherit;
+  }
+
+  input:focus,
+  select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    background: rgba(255, 255, 255, 0.95);
+  }
+
+  select option {
+    background: white;
+    color: var(--text);
+  }
+
+  .ac-footer {
+    flex: 0 0 auto;
+    /* 高さを固定 */
+    padding: 20px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 12px;
+    background: linear-gradient(135deg, #fefefe, #f9fafb);
+    /* カード自体が浮いているため、ここでのsafe-bottomは不要 */
+  }
+
+  .btn-ap {
+    flex: 2;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #059669, #047857);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 42px;
+    box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-ap:active {
+    transform: scale(0.98);
+    background: linear-gradient(135deg, #047857, #065f46);
+  }
+
+  .btn-ap::before {
+    content: '✓';
+    font-size: 1.2rem;
+  }
+
+  .btn-rj {
+    flex: 1;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #fef2f2, #fee2e2);
+    color: #dc2626;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 42px;
+    box-shadow: 0 3px 12px rgba(239, 68, 68, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-rj:active {
+    transform: scale(0.98);
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+  }
+
+  .btn-rj::before {
+    content: '×';
+    font-size: 1.3rem;
+  }
+
+  .btn-rt {
+    flex: 1.5;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #f59e0b, #ea580c);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 42px;
+    box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .btn-rt:active {
+    transform: scale(0.98);
+    background: linear-gradient(135deg, #ea580c, #dc2626);
+  }
+
+  .btn-rt::before {
+    content: '↩';
+    font-size: 1.2rem;
+  }
+
+  /* ========== その他（モーダル等） ========== */
+  /* 新しいメニューリストスタイル */
+  .menu-list-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border: none;
+    background: white;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.2s;
+  }
+
+  .menu-list-item:last-child {
+    border-bottom: none;
+  }
+
+  .menu-list-item:active {
+    background: #f8fafc;
+  }
+
+  .ml-icon {
+    font-size: 1.2rem;
+    margin-right: 12px;
+    width: 24px;
+    text-align: center;
+  }
+
+  .ml-text {
+    flex: 1;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #334155;
+  }
+
+  .ml-arrow {
+    color: #cbd5e1;
+    font-weight: bold;
+  }
+
+  .edit-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    /* Center vertically */
+    backdrop-filter: blur(8px);
+    padding: 20px;
+    /* Add padding for safety */
+  }
+
+  .edit-sheet {
+    width: 100%;
+    max-width: 600px;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.95));
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    /* All corners rounded */
+    padding: 24px;
+    /* Remove padding-bottom calc since it's centered */
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    max-height: 90vh;
+    /* Increase height slightly */
+    overflow-y: auto;
+    border: 1px solid rgba(226, 232, 240, 0.3);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+  }
+
+  @keyframes popIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95) translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+  }
+
+  /* Handle is optional now, but keeping it as a visual indicator isn't bad. 
+     Maybe redundant for a center card, so let's hide it or make it subtle. 
+     User didn't ask to remove, but it looks like a drag handle. Let's keep it but maybe minimal.
+     Actually, let's remove it for the centered card look as it implies dragging.
+  */
+  .sheet-handle {
+    display: none;
+  }
+
+  .edit-img-box {
+    width: 100%;
+    height: 300px;
+    background: #cbd5e1;
+    /* Darker for contrast */
+    border-radius: 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.1);
+    cursor: zoom-in;
+    position: relative;
+  }
+
+  .edit-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    cursor: zoom-in;
+    transition: transform 0.2s;
+  }
+
+  .edit-img:active {
+    transform: scale(0.98);
+  }
+
+  .input-group label {
+    display: block;
+    font-size: 1.1rem;
+    color: #374151;
+    margin-bottom: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+
+  .btn-save {
+    padding: 20px;
+    background: linear-gradient(135deg, #059669, #047857);
+    color: white;
+    border: none;
+    border-radius: 16px;
+    font-weight: 700;
+    font-size: 1.4rem;
+    margin-top: 16px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(5, 150, 105, 0.3);
+    transition: all 0.2s;
+    min-height: 60px;
+  }
+
+  .btn-save:active {
+    transform: scale(0.98);
+    background: linear-gradient(135deg, #047857, #065f46);
+  }
+
+  .master-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 110;
+    display: none;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .master-box {
+    width: 90%;
+    max-width: 350px;
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .master-list {
+    flex: 1;
+    overflow-y: auto;
+    margin: 16px 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
+  .master-item {
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .help-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 120;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(8px);
+  }
+
+  .help-content {
+    background: white;
+    padding: 24px;
+    border-radius: 16px;
+    max-width: 90%;
+    width: 400px;
+    position: relative;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  /* Custom Confirm Modal */
+  .confirm-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 150;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(8px);
+    padding: 20px;
+  }
+
+  .confirm-box {
+    background: white;
+    border-radius: 20px;
+    padding: 24px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: center;
+  }
+
+  .confirm-message {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #1e293b;
+    line-height: 1.5;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .btn-confirm-cancel {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    color: #64748b;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-confirm-cancel:active {
+    background: #e2e8f0;
+    transform: scale(0.98);
+  }
+
+  .btn-confirm-ok {
+    flex: 1;
+    padding: 12px;
+    border: none;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  }
+
+  .btn-confirm-ok:active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    transform: scale(0.98);
+  }
+
+  /* Destructive action variation */
+  .btn-confirm-ok.destructive {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  }
+
+  .btn-confirm-ok.destructive:active {
+    background: linear-gradient(135deg, #dc2626, #b91c1c);
+  }
+
+
+
+  .help-header {
+    padding: 24px 24px 16px;
+    background: linear-gradient(135deg, #06b6d4, #0891b2);
+    color: white;
+    text-align: center;
+  }
+
+  .help-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 700;
+  }
+
+  .help-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .help-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .help-section:last-child {
+    border-bottom: none;
+  }
+
+  .help-section h3 {
+    margin: 0 0 12px;
+    font-size: 1.2rem;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .help-section p {
+    margin: 0 0 8px;
+    line-height: 1.6;
+    color: #475569;
+    font-size: 1rem;
+  }
+
+  .help-section ul {
+    margin: 8px 0;
+    padding-left: 20px;
+    color: #475569;
+    font-size: 1rem;
+  }
+
+  .help-section li {
+    margin: 4px 0;
+  }
+
+  .help-footer {
+    padding: 16px 24px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+  }
+
+  #loadingOverlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    z-index: 3000;
+    display: none;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #ddd;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Toast */
+  #toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    padding: 12px 24px;
+    border-radius: 50px;
+    opacity: 0;
+    transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    z-index: 2000;
+    font-weight: bold;
+    font-size: 0.95rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+    background: #1e293b;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  #toast.error {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    box-shadow: 0 10px 25px rgba(220, 38, 38, 0.3);
+  }
+
+  #toast.success {
+    background: linear-gradient(135deg, #10b981, #059669);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.3);
+  }
+
+  .confirm-toast {
+    position: fixed;
+    top: 50%;
+    /* Centered vertically */
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    color: #1e293b;
+    padding: 24px;
+    border-radius: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    z-index: 1100;
+    width: 90%;
+    max-width: 320px;
+    display: none;
+    flex-direction: column;
+    gap: 16px;
+    animation: popUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Backdrop for confirm-toast */
+  .confirm-toast::before {
+    content: '';
+    position: fixed;
+    top: -500vh;
+    left: -500vw;
+    right: -500vw;
+    bottom: -500vh;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: -1;
+    backdrop-filter: blur(2px);
+  }
+
+  @keyframes popUp {
+    from {
+      transform: translate(-50%, -50%) scale(0.9);
+      opacity: 0;
+    }
+
+    to {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+    }
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  .c-btn {
+    flex: 1;
+    padding: 18px;
+    border: none;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 52px;
+  }
+
+  .c-yes {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    color: white;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  }
+
+  .c-yes:active {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    transform: scale(0.98);
+  }
+
+  .c-no {
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    color: #475569;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  .c-no:active {
+    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+    transform: scale(0.98);
+  }
+
+  #imageModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.95);
+    display: none;
+    z-index: 999;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #zoomImg {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+
+  /* ========== 重複警告スタイル ========== */
+  .duplicate-warning {
+    background: linear-gradient(135deg, #fef2f2, #fee2e2) !important;
+    border: 2px solid #ef4444 !important;
+    box-shadow: 0 4px 20px rgba(239, 68, 68, 0.3) !important;
+    position: relative;
+  }
+
+  .duplicate-warning::before {
+    content: "⚠️ 重複の可能性";
+    position: absolute;
+    top: 16px;
+    left: 35%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+    padding: 6px 14px;
+    border-radius: 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    box-shadow: 0 3px 12px rgba(239, 68, 68, 0.4);
+    animation: pulseWarning 2s infinite;
+    z-index: 10;
+    white-space: nowrap;
+  }
+
+  @keyframes pulseWarning {
+
+    0%,
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+
+    50% {
+      transform: scale(1.05);
+      opacity: 0.8;
+    }
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  /* ========== フッターナビゲーション ========== */
+  .app-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: calc(60px + var(--safe-bottom));
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(20px);
+    border-top: 1px solid rgba(0, 0, 0, 0.06);
+    display: flex;
+    justify-content: space-around;
+    padding-bottom: var(--safe-bottom);
+    z-index: 900;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+  }
+
+  .nav-btn {
+    flex: 1;
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .nav-btn.active {
+    color: var(--primary);
+  }
+
+  .nav-icon {
+    font-size: 1.5rem;
+    transition: transform 0.2s;
+  }
+
+  .nav-btn.active .nav-icon {
+    transform: scale(1.1);
+  }
+
+  .nav-text {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+
+  /* ユーザー画面の調整 (フッター分空ける) */
+  .cart-list {
+    padding-bottom: calc(180px + var(--safe-bottom));
+  }
+
+  /* Dock + Nav */
+  .operation-dock {
+    bottom: calc(60px + var(--safe-bottom));
+    /* Navの上に配置 */
+    border-radius: 24px;
+  }
+
+  /* ========== メニュー画面 ========== */
+  .menu-card {
+    background: white;
+    border: none;
+    border-radius: 16px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transition: all 0.2s;
+    cursor: pointer;
+    aspect-ratio: 1/1;
+  }
+
+  .menu-card:active {
+    transform: scale(0.96);
+    background: #f8fafc;
+  }
+
+  .mc-icon {
+    font-size: 1.8rem;
+  }
+
+  .mc-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #334155;
+    word-break: break-all;
+    line-height: 1.2;
+    text-align: center;
+  }
+
+  .menu-card:active {
+    transform: scale(0.96);
+    background: #f8fafc;
+  }
+
+  .mc-icon {
+    font-size: 2.5rem;
+  }
+
+  .mc-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #334155;
+  }
+
+  .menu-item {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    color: #334155;
+    font-weight: 600;
+    transition: background 0.2s;
+  }
+
+  .menu-item:last-child {
+    border-bottom: none;
+  }
+
+  .menu-item:active {
+    background: #f8fafc;
+  }
+
+  /* ========== レポート画面 (共通) ========== */
+  .score-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .score-card {
+    padding: 16px;
+    border-radius: 16px;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .sc-blue {
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+  }
+
+  .sc-red {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+  }
+
+  .sc-green {
+    background: linear-gradient(135deg, #10b981, #059669);
+  }
+
+  .sc-orange {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+  }
+
+  .sc-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0.9;
+  }
+
+  .sc-val {
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: -0.02em;
+  }
+
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  .report-table th,
+  .report-table td {
+    padding: 12px;
+    text-align: right;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .report-table th {
+    text-align: center;
+    background: #f8fafc;
+    color: #64748b;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .report-table th:first-child,
+  .report-table td:first-child {
+    text-align: left;
+    position: sticky;
+    left: 0;
+    background: white;
+    z-index: 11;
+    font-weight: bold;
+    border-right: 1px solid #f1f5f9;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.02);
+  }
+
+  .report-table th:first-child {
+    z-index: 12;
+    background: #f8fafc;
+  }
+
+  /* 履歴リスト */
+  .history-item {
+    background: white;
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  }
+
+  .h-stat {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-weight: bold;
+  }
+
+  .st-apply {
+    background: #e0f2fe;
+    color: #0284c7;
+  }
+
+  .st-ok {
+    background: #dcfce7;
+    color: #166534;
+  }
+
+  .st-ng {
+    background: #fee2e2;
+    color: #991b1b;
+  }
+
+  .st-ret {
+    background: #ffedd5;
+    color: #9a3412;
+  }
+
+  /* ========== Payment View Improvements ========== */
+  .filter-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+    align-items: center;
+    background: white;
+    padding: 16px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+  }
+
+  .filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .filter-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--sub-text);
+    white-space: nowrap;
+  }
+
+  .filter-pill {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 4px 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+
+  .filter-pill:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  }
+
+  /* Stat Grid */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-panel {
+    background: white;
+    border-radius: 16px;
+    padding: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .stat-panel::after {
+    content: '';
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    opacity: 0.1;
+    pointer-events: none;
+  }
+
+  .stat-panel.blue::after {
+    background: var(--primary);
+  }
+
+  .stat-panel.red::after {
+    background: #ef4444;
+  }
+
+  .stat-panel.green::after {
+    background: #10b981;
+  }
+
+  .stat-panel.gray::after {
+    background: #64748b;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--sub-text);
+    font-weight: 600;
+    z-index: 1;
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text);
+    z-index: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .stat-value.blue {
+    color: var(--primary);
+  }
+
+  .stat-value.red {
+    color: #ef4444;
+  }
+
+  .stat-value.green {
+    color: #10b981;
+  }
+
+  /* Payment Card Tweaks */
+  .pay-card-header {
+    padding: 16px;
+    background: #ffffff;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .pay-status-chip {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .pay-status-chip.paid {
+    background: #d1fae5;
+    color: #047857;
+  }
+
+  .pay-status-chip.unpaid {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .pay-status-chip.rejected {
+    background: #f3f4f6;
+    color: #6b7280;
+    text-decoration: line-through;
+  }
+
+  /* Additional polish for inputs in filter */
+  .filter-input {
+    border: none;
+    background: transparent;
+    padding: 4px;
+    font-size: 0.95rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+</style>

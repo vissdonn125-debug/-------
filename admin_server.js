@@ -39,6 +39,9 @@ function getAdminDashboardData() {
     var appIds = [];
     var appMap = {};
 
+    // ユーザーマスタから拠点マッピングを取得（ヘッダのdeptが空の場合のフォールバック用）
+    var userBranchMap = getUserBranchMap_();
+
     for (var i = 0; i < headValues.length; i++) {
         var row = headValues[i];
         var status = row[HEADER_COL.STATUS - 1];
@@ -47,12 +50,17 @@ function getAdminDashboardData() {
         if (status === STATUS.APPLYING) {
             var appId = row[HEADER_COL.APPLICATION_ID - 1];
             var appDate = row[HEADER_COL.APPLICATION_DATE - 1];
+            var email = row[HEADER_COL.APPLICANT_EMAIL - 1];
+            var headerDept = row[HEADER_COL.APPLICANT_DEPT - 1];
+
+            // deptが空の場合、ユーザーマスタから取得
+            var dept = headerDept || userBranchMap[normalizeEmail_(email)] || '';
 
             var appObj = {
                 appId: appId,
                 applicant: row[HEADER_COL.APPLICANT_NAME - 1],
-                email: row[HEADER_COL.APPLICANT_EMAIL - 1],
-                dept: row[HEADER_COL.APPLICANT_DEPT - 1],
+                email: email,
+                dept: dept,
                 totalAmount: row[HEADER_COL.TOTAL_AMOUNT - 1],
                 date: Utilities.formatDate(new Date(appDate), TIMEZONE, 'yyyy/MM/dd'),
                 details: []

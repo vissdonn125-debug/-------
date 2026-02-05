@@ -489,27 +489,41 @@
     </div>
 
     <div id="subjectModal" class="master-modal">
-      <div class="master-box" style="width: 90%; max-width: 400px;">
-        <h3>科目マスタ</h3>
-        <select id="subjectBranchFilter"
-          style="font-size:1.1rem; padding:8px; border-radius:8px; border:1px solid #e2e8f0; width:100%; margin-bottom:12px; box-sizing:border-box;"
-          onchange="renderSubjectList()">
-          <option value="">全拠点 (共通含む)</option>
-        </select>
+      <div class="master-box" style="width: 90%; max-width: 400px; padding:24px; max-height:85vh; overflow-y:auto;">
+        <h3 style="text-align:center; margin-bottom:20px; color:var(--primary);">📁 科目マスタ管理</h3>
+
+        <!-- Filter (Top) -->
+        <div class="input-group">
+          <label>表示フィルター</label>
+          <select id="subjectBranchFilter"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;"
+            onchange="renderSubjectList()">
+            <option value="">全拠点 (共通含む)</option>
+          </select>
+        </div>
+
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #e2e8f0;">
+
+        <!-- Input Fields -->
         <div class="input-group">
           <label>科目名</label>
-          <input id="newSubject" type="text" placeholder="例: 消耗品費">
+          <input id="newSubject" type="text" placeholder="例: 消耗品費"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
         </div>
-        <div style="display:flex; gap:8px;">
+
+        <div style="display:flex; gap:12px;">
           <div class="input-group" style="flex:1;">
             <label>税率%</label>
-            <input id="newTax" type="number" placeholder="10" value="10">
+            <input id="newTax" type="number" placeholder="10" value="10"
+              style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
           </div>
           <div class="input-group" style="flex:2;">
             <label>キーワード</label>
-            <input id="newKw" type="text" placeholder="任意">
+            <input id="newKw" type="text" placeholder="任意"
+              style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
           </div>
         </div>
+
         <div class="input-group">
           <label>拠点 (指定なしで共通)</label>
           <select id="newBranch"
@@ -517,16 +531,25 @@
             <option value="">指定なし (共通)</option>
           </select>
         </div>
-        <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:8px;">
+
+        <!-- Buttons -->
+        <div style="display:flex; gap:10px; margin-top:20px;">
           <button id="updateSubBtn" onclick="updateSubject()"
-            style="display:none; padding:8px 16px; background:#f59e0b; color:white; border:none; border-radius:6px; font-weight:bold;">更新</button>
+            style="display:none; flex:1; padding:12px; background:linear-gradient(135deg, #f59e0b, #d97706); color:white; border:none; border-radius:8px; font-weight:bold;">更新</button>
           <button id="addSubBtn" onclick="addSubject()"
-            style="padding:8px 16px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">追加</button>
+            style="display:inline-block; flex:1; padding:12px; background:linear-gradient(135deg, var(--primary), #2563eb); color:white; border:none; border-radius:8px; font-weight:bold;">追加</button>
         </div>
 
-        <div id="subjectListDiv" class="master-list"></div>
+        <!-- List -->
+        <div style="margin-top:24px;">
+          <label style="font-weight:bold; color:#64748b; font-size:0.9rem;">登録済み科目</label>
+          <div id="subjectListDiv" class="master-list"
+            style="margin-top:8px; max-height: 200px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:8px;">
+          </div>
+        </div>
+
         <button onclick="closeSubjectMaster()"
-          style="margin-top:16px; width:100%; padding:12px; background:#f1f5f9; border:none; border-radius:8px; font-weight:bold; color:#475569;">閉じる</button>
+          style="margin-top:20px; width:100%; padding:12px; background:#f1f5f9; border:none; border-radius:8px; font-weight:bold; color:#475569;">閉じる</button>
       </div>
     </div>
 

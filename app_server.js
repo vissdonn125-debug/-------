@@ -111,10 +111,10 @@ function api_getMyHistory(targetMonth) {
 }
 
 /**
- * カート申請作成 (複数明細)
+ * カート申請作成 (複数明細) - API
  * data: { applicantId, items: [ { amount, vendor, subject, receiptUrl, ... } ] }
  */
-function createApplicationWithDetails(data) {
+function api_submitExpense(data) {
   // 1. ユーザー特定
   var currentUser = getCurrentUserInfo();
   var userInfo = null;

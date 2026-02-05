@@ -41,13 +41,26 @@
         }).getAdminDashboardData();
     }
 
-    function populateApplicantFilter(pendingList) {
-        const applicants = [...new Set(pendingList.map(app => app.applicant))].sort();
+    function populateApplicantFilter(pendingList, branchFilter) {
+        // If branchFilter is specified, only show applicants from that branch
+        let filteredList = pendingList;
+        if (branchFilter) {
+            filteredList = pendingList.filter(app => app.dept === branchFilter);
+        }
+        const applicants = [...new Set(filteredList.map(app => app.applicant))].sort();
         renderSelectOptions('applicantFilter', applicants, { defaultText: '申請者: 全員' });
 
-        filter.onchange = applyAdminFilters;
+        const appFilter = document.getElementById('applicantFilter');
+        if (appFilter) appFilter.onchange = applyAdminFilters;
         const brFilter = document.getElementById('approveBranchFilter');
-        if (brFilter) brFilter.onchange = applyAdminFilters;
+        if (brFilter) brFilter.onchange = onBranchFilterChange;
+    }
+
+    function onBranchFilterChange() {
+        // When branch changes, update applicant filter to only show people from that branch
+        const selectedBranch = document.getElementById('approveBranchFilter').value;
+        populateApplicantFilter(AppState.allPendingList, selectedBranch);
+        applyAdminFilters();
     }
 
     function applyAdminFilters() {
@@ -56,12 +69,12 @@
 
         let filteredList = AppState.allPendingList;
 
-        if (selectedApplicant) {
-            filteredList = filteredList.filter(app => app.applicant === selectedApplicant);
-        }
-
         if (selectedBranch) {
             filteredList = filteredList.filter(app => app.dept === selectedBranch);
+        }
+
+        if (selectedApplicant) {
+            filteredList = filteredList.filter(app => app.applicant === selectedApplicant);
         }
 
         const totalAmount = filteredList.reduce((sum, app) => sum + Number(app.totalAmount || 0), 0);

@@ -276,9 +276,11 @@
     }
 
     function showAdminHelp() {
-        // 管理者ガイド用の表示 (必要ならAdmin専用コンテンツを表示)
-        // 現状、共通の helpModal を使うなら同じで良い
-        document.getElementById('helpModal').style.display = 'flex';
+        document.getElementById('adminHelpModal').style.display = 'flex';
+    }
+
+    function closeAdminHelp() {
+        document.getElementById('adminHelpModal').style.display = 'none';
     }
 
     function closeHelp() {

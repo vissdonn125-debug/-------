@@ -256,9 +256,9 @@
         if (options.autoSelectBranch) {
             if (currentVal && [...sel.options].some(o => o.value === currentVal)) {
                 sel.value = currentVal;
-            } else if (currentUserBranch) {
-                if ([...sel.options].some(o => o.value === currentUserBranch)) {
-                    sel.value = currentUserBranch;
+            } else if (AppState.currentUserBranch) {
+                if ([...sel.options].some(o => o.value === AppState.currentUserBranch)) {
+                    sel.value = AppState.currentUserBranch;
                 }
             }
         }

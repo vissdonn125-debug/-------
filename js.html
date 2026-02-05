@@ -1304,6 +1304,12 @@
   function closeHelp() {
     document.getElementById('helpModal').style.display = 'none';
   }
+  function showAdminHelp() {
+    document.getElementById('adminHelpModal').style.display = 'flex';
+  }
+  function closeAdminHelp() {
+    document.getElementById('adminHelpModal').style.display = 'none';
+  }
   // --- 入金登録モーダル ---
   function openDepositModal() {
     document.getElementById('depositModal').style.display = 'flex';
@@ -1517,8 +1523,10 @@
       // const editBtnHtml = ... (Not used in header anymore)
 
       // ステータスチップ
+      // 入金・出金・調整は支払ステータス不要
       let statusChip = '';
       if (isAppRejected) statusChip = `<span class="pay-status-chip rejected">却下</span>`;
+      else if (isDeposit) statusChip = ''; // 入金系は支払いステータス非表示
       else if (isPaid) statusChip = `<span class="pay-status-chip paid">支払済</span>`;
       else statusChip = `<span class="pay-status-chip unpaid">未払い</span>`;
 

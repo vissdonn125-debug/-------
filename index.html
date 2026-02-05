@@ -93,9 +93,9 @@
               <span class="ml-text">承認・却下</span>
               <span class="ml-arrow">&gt;</span>
             </button>
-            <button class="menu-list-item" onclick="openSubjectMaster()">
-              <span class="ml-icon">📁</span>
-              <span class="ml-text">科目管理</span>
+            <button class="menu-list-item" onclick="switchView('paymentView'); loadPaymentList();">
+              <span class="ml-icon">💸</span>
+              <span class="ml-text">支払い・履歴</span>
               <span class="ml-arrow">&gt;</span>
             </button>
             <button class="menu-list-item" onclick="switchView('reportMonthView'); loadMonthlyReport();">
@@ -108,14 +108,19 @@
               <span class="ml-text">日別集計</span>
               <span class="ml-arrow">&gt;</span>
             </button>
-            <button class="menu-list-item" onclick="switchView('paymentView'); loadPaymentList();">
-              <span class="ml-icon">💸</span>
-              <span class="ml-text">支払い・履歴</span>
-              <span class="ml-arrow">&gt;</span>
-            </button>
             <button class="menu-list-item" onclick="openDepositModal()">
               <span class="ml-icon">💰</span>
               <span class="ml-text">入金・調整登録</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+            <button class="menu-list-item" onclick="openSubjectMaster()">
+              <span class="ml-icon">📁</span>
+              <span class="ml-text">科目管理</span>
+              <span class="ml-arrow">&gt;</span>
+            </button>
+            <button class="menu-list-item" onclick="showAdminHelp()">
+              <span class="ml-icon">📖</span>
+              <span class="ml-text">管理者ガイド</span>
               <span class="ml-arrow">&gt;</span>
             </button>
           </div>
@@ -559,6 +564,83 @@
         </div>
         <div class="help-footer">
           <button onclick="closeHelp()"
+            style="padding:12px 24px; background:#06b6d4; color:white; border:none; border-radius:12px; font-weight:bold; font-size:1.1rem;">閉じる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者ガイドモーダル -->
+    <div id="adminHelpModal" class="help-modal" onclick="if(event.target===this) closeAdminHelp()">
+      <div class="help-content">
+        <div class="help-header">
+          <h2>📖 管理者ガイド</h2>
+        </div>
+        <div class="help-body">
+          <div class="help-section">
+            <h3>⚡ 承認・却下</h3>
+            <p><strong>申請一覧</strong>：未処理の経費申請が表示されます</p>
+            <ul>
+              <li><strong>金額修正</strong>：必要に応じて明細の金額や科目を修正可能</li>
+              <li><strong>承認</strong>：内容に問題なければ承認</li>
+              <li><strong>却下</strong>：不適切な申請を却下（申請者に通知）</li>
+              <li><strong>差し戻し</strong>：修正が必要な場合、理由を入力して差し戻し</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>📁 科目管理</h3>
+            <p>経費の分類に使う科目マスタを管理します</p>
+            <ul>
+              <li><strong>追加</strong>：科目名・税率・キーワードを入力して追加</li>
+              <li><strong>編集</strong>：既存の科目をタップして修正</li>
+              <li><strong>削除</strong>：不要な科目を削除</li>
+            </ul>
+            <p style="color:#64748b; font-size:0.9rem;">※キーワードはOCR自動判定に使用されます</p>
+          </div>
+
+          <div class="help-section">
+            <h3>📊 月次レポート</h3>
+            <p>月別の収支状況を確認できます</p>
+            <ul>
+              <li><strong>収入</strong>：入金登録した金額の合計</li>
+              <li><strong>支出</strong>：承認済み経費の合計</li>
+              <li><strong>残高</strong>：繰越＋収入−支出</li>
+              <li><strong>拠点フィルタ</strong>：拠点別に絞り込み可能</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>📅 日別集計</h3>
+            <p>日別・担当者別の経費集計を確認できます</p>
+            <ul>
+              <li>月を選択して集計期間を指定</li>
+              <li>担当者ごとの経費総額を一覧表示</li>
+            </ul>
+          </div>
+
+          <div class="help-section">
+            <h3>💸 支払い・履歴</h3>
+            <p>承認済み申請の支払い状況を管理します</p>
+            <ul>
+              <li><strong>支払済にする</strong>：経費を精算したらボタンをタップ</li>
+              <li><strong>履歴確認</strong>：過去の申請内容を確認・再判定</li>
+            </ul>
+            <p style="color:#64748b; font-size:0.9rem;">※入金・調整系（DEP-）は支払い対象外のためボタン非表示</p>
+          </div>
+
+          <div class="help-section">
+            <h3>💰 入金・調整登録</h3>
+            <p>現金入金や調整を登録します</p>
+            <ul>
+              <li><strong>入金</strong>：小口現金の補充など</li>
+              <li><strong>出金</strong>：経費申請外の出金</li>
+              <li><strong>調整</strong>：過不足の調整</li>
+            </ul>
+            <p style="color:#64748b; font-size:0.9rem;">※登録した内容は月次レポートの収支に反映されます</p>
+          </div>
+        </div>
+        <div class="help-footer">
+          <button onclick="closeAdminHelp()"
             style="padding:12px 24px; background:#06b6d4; color:white; border:none; border-radius:12px; font-weight:bold; font-size:1.1rem;">閉じる</button>
         </div>
       </div>

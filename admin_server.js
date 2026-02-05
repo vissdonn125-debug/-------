@@ -628,13 +628,21 @@ function api_getMonthlyReport(targetMonth, targetBranch) {
  * 日別(人別)レポート取得
  * targetDate: 'yyyy-MM' for monthly, 'yyyy-MM-dd' for specific date
  * targetBranch: string (Optional)
+ * ※ 申請日(APPLICATION_DATE)でフィルタリング
  */
 function api_getDailyReport(targetDate, targetBranch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
-    var data = getReportData_(targetDate);
-    var userMap = {};
+    var headerSheet = getSheet_(SHEET_NAMES.HEADER);
+    var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
+
+    // ヘッダ取得
+    var hLast = headerSheet.getLastRow();
+    if (hLast <= 1) return { list: [] };
+    var hVals = headerSheet.getRange(2, 1, hLast - 1, HEADER_COL.COL_COUNT).getValues();
+
+    var isMonthly = (targetDate.length === 7); // yyyy-MM
 
     // 拠点フィルタ用のマップ作成
     var userBranchMap = {};
@@ -649,19 +657,55 @@ function api_getDailyReport(targetDate, targetBranch) {
         }
     }
 
-    data.details.forEach(function (det) {
-        // 拠点フィルタ
-        if (targetBranch) {
-            var email = normalizeEmail_(det.applicantEmail);
-            if (userBranchMap[email] !== targetBranch) return;
+    // 対象の申請IDを収集 (申請日でフィルタ)
+    var targetAppIds = {};
+    hVals.forEach(function (row) {
+        var status = row[HEADER_COL.STATUS - 1];
+        if (status !== STATUS.APPROVED && status !== STATUS.FIXED) return;
+
+        var appDateRaw = row[HEADER_COL.APPLICATION_DATE - 1];
+        if (!appDateRaw) return;
+        var appDateObj = new Date(appDateRaw);
+        var appDaily = Utilities.formatDate(appDateObj, TIMEZONE, 'yyyy-MM-dd');
+        var appMonthly = appDaily.substring(0, 7);
+
+        var isMatch = false;
+        if (isMonthly) {
+            if (appMonthly === targetDate) isMatch = true;
+        } else {
+            if (appDaily === targetDate) isMatch = true;
         }
 
-        // 入金は除外して経費のみ集計
-        if (det.subject === '入金' || det.subject === '仮払受入') return;
+        if (isMatch) {
+            targetAppIds[row[HEADER_COL.APPLICATION_ID - 1]] = {
+                name: row[HEADER_COL.APPLICANT_NAME - 1],
+                email: row[HEADER_COL.APPLICANT_EMAIL - 1]
+            };
+        }
+    });
 
-        var name = det.applicantName || '不明';
+    // 明細取得
+    var dLast = detailSheet.getLastRow();
+    if (dLast <= 1) return { list: [] };
+    var dVals = detailSheet.getRange(2, 1, dLast - 1, DETAIL_COL.COL_COUNT).getValues();
+
+    var userMap = {};
+
+    dVals.forEach(function (row) {
+        var appId = row[DETAIL_COL.APPLICATION_ID - 1];
+        if (!targetAppIds[appId]) return;
+
+        var subject = row[DETAIL_COL.SUBJECT - 1];
+        // 入金は除外して経費のみ集計
+        if (subject === '入金' || subject === '仮払受入') return;
+
+        var email = normalizeEmail_(targetAppIds[appId].email);
+        // 拠点フィルタ
+        if (targetBranch && userBranchMap[email] !== targetBranch) return;
+
+        var name = targetAppIds[appId].name || '不明';
         if (!userMap[name]) userMap[name] = 0;
-        userMap[name] += Number(det.amount);
+        userMap[name] += Number(row[DETAIL_COL.AMOUNT - 1]);
     });
 
     var list = Object.keys(userMap).map(function (name) {

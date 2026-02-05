@@ -121,7 +121,7 @@ function api_submitExpense(data) {
   var userInfo = null;
 
   // セキュリティ強化: 管理者でない場合、applicantId の指定を無視して自分自身として申請する
-  if (currentUser.role === 'ADMIN' && data.applicantId) {
+  if (currentUser.role === ROLES.ADMIN && data.applicantId) {
     userInfo = findUserById_(data.applicantId);
   }
 

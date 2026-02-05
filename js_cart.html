@@ -19,8 +19,8 @@
             const dataUrl = e.target.result;
 
             // 続きモードの場合、最後の明細に追加
-            if (isContinueMode && cartItems.length > 0) {
-                const lastItem = cartItems[cartItems.length - 1];
+            if (isContinueMode && AppState.cartItems.length > 0) {
+                const lastItem = AppState.cartItems[AppState.cartItems.length - 1];
 
                 // 画像を配列で保持（初回は配列化）
                 if (!Array.isArray(lastItem.imgData)) {
@@ -58,7 +58,7 @@
                 // 通常モード：新しい明細を作成
                 const today = new Date().toISOString().split('T')[0];
                 const item = { id: id, status: 'analyzing', amount: 0, vendor: '', subject: '', invoiceReg: '不明', taxRate: 10, usageDate: today, purpose: '', imgData: dataUrl, receiptUrl: null };
-                cartItems.push(item);
+                AppState.cartItems.push(item);
                 renderCart();
                 showToast('解析を開始しました');
 
@@ -66,7 +66,7 @@
                 const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
 
                 google.script.run.withSuccessHandler(res => {
-                    const target = cartItems.find(i => i.id === id);
+                    const target = AppState.cartItems.find(i => i.id === id);
                     if (target) {
                         target.status = 'done';
                         target.amount = res.ocr.amount;
@@ -80,7 +80,7 @@
                         showToast('解析完了: ' + (target.vendor || '店名不明'));
                     }
                 }).withFailureHandler(e => {
-                    const target = cartItems.find(i => i.id === id);
+                    const target = AppState.cartItems.find(i => i.id === id);
                     if (target) {
                         target.status = 'error';
                         renderCart();
@@ -111,7 +111,7 @@
             imgData: null,
             receiptUrl: null
         };
-        cartItems.push(item);
+        AppState.cartItems.push(item);
         renderCart();
         openEdit(id);
         showToast('手入力明細を追加しました');
@@ -123,7 +123,7 @@
         let total = 0;
 
         // 編集モード表示
-        if (editingAppId) {
+        if (AppState.editingAppId) {
             const warning = document.createElement('div');
             warning.innerHTML = `<div style="background:#fff7ed; color:#c2410c; padding:8px 12px; margin-bottom:12px; border-radius:8px; font-size:0.9rem; display:flex; justify-content:space-between; align-items:center;">
           <span>📝 過去の申請を編集中</span>
@@ -132,7 +132,7 @@
             list.appendChild(warning);
         }
 
-        if (cartItems.length === 0) {
+        if (AppState.cartItems.length === 0) {
             list.innerHTML += '<div class="cart-empty">レシートを撮影してください</div>';
             document.getElementById('totalDisplay').innerText = '0';
             document.getElementById('submitBtn').disabled = true;
@@ -141,7 +141,7 @@
             return;
         }
 
-        cartItems.forEach((item) => {
+        AppState.cartItems.forEach((item) => {
             total += Number(item.amount || 0);
             const div = document.createElement('div');
             div.className = 'cart-item';
@@ -211,30 +211,30 @@
 
         const btnInner = document.getElementById('submitBtnText');
         if (btnInner) {
-            btnInner.innerText = editingAppId ? '更新して再申請' : 'まとめて申請';
+            btnInner.innerText = AppState.editingAppId ? '更新して再申請' : 'まとめて申請';
         }
     }
 
     function delCart(id) {
         showConfirm('削除しますか？', () => {
-            cartItems = cartItems.filter(i => i.id !== id);
+            AppState.cartItems = AppState.cartItems.filter(i => i.id !== id);
             renderCart();
         });
     }
 
     function cancelEditMode() {
         showConfirm('編集内容を破棄して新規作成に戻りますか？', () => {
-            editingAppId = null;
-            cartItems = [];
+            AppState.editingAppId = null;
+            AppState.cartItems = [];
             renderCart();
         });
     }
 
     // ========== Edit Modal (Cart Item) ==========
     function openEdit(id) {
-        const item = cartItems.find(i => i.id === id);
+        const item = AppState.cartItems.find(i => i.id === id);
         if (!item) return;
-        editingId = id;
+        AppState.editingId = id;
 
         const imgBox = document.querySelector('.edit-img-box');
         imgBox.innerHTML = '';
@@ -294,7 +294,7 @@
     }
 
     function saveEdit() {
-        const item = cartItems.find(i => i.id === editingId);
+        const item = AppState.cartItems.find(i => i.id === AppState.editingId);
         if (item) {
             item.usageDate = document.getElementById('eDate').value;
             item.amount = Number(document.getElementById('eAmt').value);
@@ -310,7 +310,7 @@
 
     function updateTaxRateBySubject() {
         const subjectName = document.getElementById('eSub').value;
-        const subjectData = subjectMasterWithTax.find(s => s.name === subjectName);
+        const subjectData = AppState.subjectMasterWithTax.find(s => s.name === subjectName);
         if (subjectData) {
             document.getElementById('eTax').value = subjectData.taxRate;
         }
@@ -319,28 +319,28 @@
 
     // ========== Submission ==========
     function submitCart() {
-        if (cartItems.length === 0) return;
-        const invalid = cartItems.some(i => !i.amount || i.amount <= 0);
+        if (AppState.cartItems.length === 0) return;
+        const invalid = AppState.cartItems.some(i => !i.amount || i.amount <= 0);
         if (invalid) return showToast('金額が未入力の明細があります！', 'error');
-        const analyzing = cartItems.some(i => i.status === 'analyzing');
+        const analyzing = AppState.cartItems.some(i => i.status === 'analyzing');
         if (analyzing) return showToast('解析中の明細があります', 'error');
 
-        const isUpdate = !!editingAppId;
+        const isUpdate = !!AppState.editingAppId;
         const msg = isUpdate
             ? `修正内容で更新（再申請）しますか？\n合計 ¥${document.getElementById('totalDisplay').innerText}`
             : `合計 ¥${document.getElementById('totalDisplay').innerText} で申請しますか？`;
 
         showConfirm(msg, () => {
             const applicantId = document.getElementById('applicantSelector').value;
-            const data = { applicantId: applicantId, items: cartItems };
+            const data = { applicantId: applicantId, items: AppState.cartItems };
 
             showLoad(isUpdate ? '更新中...' : '申請送信中...');
 
             const successHandler = (res) => {
                 hideLoad();
                 showToast(isUpdate ? '更新しました！' : '申請が完了しました！');
-                cartItems = [];
-                editingAppId = null;
+                AppState.cartItems = [];
+                AppState.editingAppId = null;
                 renderCart();
             };
             const failureHandler = (e) => {
@@ -349,7 +349,7 @@
             };
 
             if (isUpdate) {
-                google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_updateApplication(editingAppId, data);
+                google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_updateApplication(AppState.editingAppId, data);
             } else {
                 google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_submitExpense(data);
             }
@@ -453,8 +453,8 @@
             showLoad('申請データを取得中...');
             google.script.run.withSuccessHandler(res => {
                 hideLoad();
-                editingAppId = appId;
-                cartItems = res.items;
+                AppState.editingAppId = appId;
+                AppState.cartItems = res.items;
                 renderCart();
                 switchView('userView');
                 showToast('編集モードになりました');
@@ -464,7 +464,7 @@
             }).api_getApplication(appId);
         };
 
-        if (cartItems.length > 0) {
+        if (AppState.cartItems.length > 0) {
             showConfirm('現在入力中の内容は破棄されますがよろしいですか？', proceed);
         } else {
             proceed();

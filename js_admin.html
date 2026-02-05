@@ -6,15 +6,15 @@
     // ========== Mode Switching ==========
     function toggleMode() {
         const btn = document.getElementById('adminBtn');
-        if (!isAdminMode) {
-            isAdminMode = true;
+        if (!AppState.isAdminMode) {
+            AppState.isAdminMode = true;
             document.getElementById('userView').classList.remove('active');
             document.getElementById('adminView').classList.add('active');
             if (btn) btn.innerText = '申請へ';
             loadAdminData();
             switchView('adminView'); // Use generic switcher for scrolling
         } else {
-            isAdminMode = false;
+            AppState.isAdminMode = false;
             document.getElementById('adminView').classList.remove('active');
             document.getElementById('userView').classList.add('active');
             if (btn) btn.innerText = '管理者';
@@ -28,10 +28,10 @@
         google.script.run.withSuccessHandler(res => {
             hideLoad();
             // res.subjectList is Object Array
-            subjectMasterWithTax = res.subjectList;
-            subjectMaster = res.subjectList.map(s => s.name);
+            AppState.subjectMasterWithTax = res.subjectList;
+            AppState.subjectMaster = res.subjectList.map(s => s.name);
 
-            allPendingList = res.pendingList;
+            AppState.allPendingList = res.pendingList;
             populateApplicantFilter(res.pendingList);
             populateBranchFilter(res.branches || []);
             renderAdminCards(res.pendingList);
@@ -42,21 +42,8 @@
     }
 
     function populateApplicantFilter(pendingList) {
-        const filter = document.getElementById('applicantFilter');
-        if (!filter) return;
         const applicants = [...new Set(pendingList.map(app => app.applicant))].sort();
-
-        // Clear existing except first
-        while (filter.children.length > 1) {
-            filter.removeChild(filter.lastChild);
-        }
-
-        applicants.forEach(name => {
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            filter.appendChild(option);
-        });
+        renderSelectOptions('applicantFilter', applicants, { defaultText: '申請者: 全員' });
 
         filter.onchange = applyAdminFilters;
         const brFilter = document.getElementById('approveBranchFilter');
@@ -67,7 +54,7 @@
         const selectedApplicant = document.getElementById('applicantFilter').value;
         const selectedBranch = document.getElementById('approveBranchFilter').value;
 
-        let filteredList = allPendingList;
+        let filteredList = AppState.allPendingList;
 
         if (selectedApplicant) {
             filteredList = filteredList.filter(app => app.applicant === selectedApplicant);
@@ -151,7 +138,7 @@
         let bodyHtml = '<div class="ac-body" style="display:flex; flex-direction:column; gap:24px;">';
         app.details.forEach((d, idx) => {
             let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
-                subjectMaster.map(s => {
+                AppState.subjectMaster.map(s => {
                     const safeS = escapeHtml(s);
                     return `<option value="${safeS}" ${s === d.subject ? 'selected' : ''}>${safeS}</option>`;
                 }).join('');
@@ -292,8 +279,8 @@
 
     // ========== Approval / Rejection ==========
     function openConfirm(appId, action) {
-        pendingAppId = appId;
-        pendingAction = action;
+        AppState.pendingAppId = appId;
+        AppState.pendingAction = action;
         const msg = action === 'approve' ? 'この内容で承認しますか？' : '却下しますか？';
         document.getElementById('confirmMsg').innerText = msg;
         const yesBtn = document.getElementById('confirmYesBtn');
@@ -303,13 +290,13 @@
 
     function closeConfirm() {
         document.getElementById('confirmToast').style.display = 'none';
-        pendingAppId = null;
-        pendingAction = null;
+        AppState.pendingAppId = null;
+        AppState.pendingAction = null;
     }
 
     function execProcess() {
-        const appId = pendingAppId;
-        const action = pendingAction;
+        const appId = AppState.pendingAppId;
+        const action = AppState.pendingAction;
         closeConfirm();
 
         const card = document.getElementById('card-' + appId);
@@ -340,16 +327,16 @@
 
     // ========== Return (Send Back) ==========
     function openReturnModal(appId) {
-        pendingAppId = appId;
+        AppState.pendingAppId = appId;
         document.getElementById('returnComment').value = '';
         document.getElementById('returnModal').style.display = 'flex';
     }
     function closeReturnModal() {
         document.getElementById('returnModal').style.display = 'none';
-        pendingAppId = null;
+        AppState.pendingAppId = null;
     }
     function execReturn() {
-        const appId = pendingAppId;
+        const appId = AppState.pendingAppId;
         const comment = document.getElementById('returnComment').value;
         closeReturnModal();
 
@@ -402,7 +389,7 @@
     function renderSubjectList() {
         const div = document.getElementById('subjectListDiv');
         const filterBranch = document.getElementById('subjectBranchFilter').value;
-        let list = subjectMasterWithTax;
+        let list = AppState.subjectMasterWithTax;
 
         if (filterBranch) {
             list = list.filter(s => s.branch === filterBranch || !s.branch);
@@ -493,8 +480,8 @@
     }
 
     function updateSubjectGlobal(list) {
-        subjectMasterWithTax = list;
-        subjectMaster = list.map(s => s.name);
+        AppState.subjectMasterWithTax = list;
+        AppState.subjectMaster = list.map(s => s.name);
     }
 
     // ========== Payment Management ==========
@@ -523,7 +510,7 @@
         document.getElementById('paymentSummaryArea').style.display = 'none';
 
         google.script.run.withSuccessHandler(list => {
-            lastPaymentList = list;
+            AppState.lastPaymentList = list;
             populatePaymentApplicantFilter(list);
             filterPaymentList();
         }).withFailureHandler(e => {
@@ -533,14 +520,9 @@
     }
 
     function populatePaymentApplicantFilter(list) {
-        const sel = document.getElementById('paymentApplicantFilter');
-        while (sel.options.length > 1) sel.remove(1);
         const applicants = [...new Set(list.map(a => a.applicant))].sort();
-        applicants.forEach(name => {
-            const opt = document.createElement('option');
-            opt.value = name;
-            opt.textContent = name;
-            sel.appendChild(opt);
+        renderSelectOptions('paymentApplicantFilter', applicants, {
+            defaultText: '全員'
         });
     }
 
@@ -549,13 +531,13 @@
         const statusFilter = document.getElementById('paymentStatusFilter').value;
         const branchFilter = document.getElementById('paymentBranchFilter').value;
 
-        if (!lastPaymentList || lastPaymentList.length === 0) {
+        if (!AppState.lastPaymentList || AppState.lastPaymentList.length === 0) {
             renderPaymentHistoryCards([]);
             updatePaymentSummary([], applicantFilter, statusFilter);
             return;
         }
 
-        let filtered = lastPaymentList.filter(app => {
+        let filtered = AppState.lastPaymentList.filter(app => {
             if (applicantFilter && app.applicant !== applicantFilter) return false;
             if (branchFilter && app.dept !== branchFilter) return false;
             if (statusFilter) {
@@ -666,7 +648,7 @@
         google.script.run.withSuccessHandler(res => {
             hideLoad();
             showToast('支払いステータスを更新しました');
-            const target = lastPaymentList.find(a => a.appId === appId);
+            const target = AppState.lastPaymentList.find(a => a.appId === appId);
             if (target) {
                 target.paymentStatus = toPaid ? APP_CONST.PAYMENT_STATUS.PAID : APP_CONST.PAYMENT_STATUS.UNPAID;
                 filterPaymentList();

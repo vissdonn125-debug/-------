@@ -18,26 +18,8 @@
         editingAppId: null // ID of application being edited
     };
 
-    // Global aliases for backward compatibility during refactor
-    // (These will eventually be replaced by AppState references)
-    // Proxy getters/setters could be used but direct assignment is safer for now.
-    let cartItems = [];
-    let subjectMaster = [];
-    let subjectMasterWithTax = [];
-    let currentUserBranch = '';
-    let editingId = null;
-    let isAdminMode = false;
-    let pendingAppId = null;
-    let pendingAction = null;
-    let allPendingList = [];
-    let lastPaymentList = [];
-    let editingAppId = null;
-
-    // Sync helpers (optional, or just update globals directly)
-    function syncGlobals() {
-        AppState.cartItems = cartItems;
-        // ... others
-    }
+    // Global State management
+    // Access via AppState.cartItems, etc.
 
     // ========== Constants ==========
     // APP_CONST is defined in index.html via server injection
@@ -66,9 +48,9 @@
         }
 
         // Master Data
-        subjectMasterWithTax = data.subjectMaster || [];
-        subjectMaster = (data.subjectMaster || []).map(s => s.name);
-        currentUserBranch = data.currentUser.branch || '';
+        AppState.subjectMasterWithTax = data.subjectMaster || [];
+        AppState.subjectMaster = (data.subjectMaster || []).map(s => s.name);
+        AppState.currentUserBranch = data.currentUser.branch || '';
         populateBranchFilter(data.branches || []);
 
         // Initial Date
@@ -237,33 +219,65 @@
 
     // ========== Generic Helpers ==========
     /**
-     * Populate Branch Filter (Shared)
+     * Render Select Options (Generic)
+     * @param {string} elementId - Target select element ID
+     * @param {Array} list - Array of strings or objects
+     * @param {Object} options - { valueKey, textKey, defaultText, defaultVal, selectedVal, autoSelectBranch }
      */
-    function populateBranchFilter(branches) {
-        const ids = ['approveBranchFilter', 'paymentBranchFilter', 'reportBranchFilter', 'dailyReportBranchFilter', 'depBranch', 'subjectBranchFilter', 'newBranch', 'historyBranchFilter'];
-        ids.forEach(id => {
-            const sel = document.getElementById(id);
-            if (!sel) return;
-            const currentVal = sel.value;
+    function renderSelectOptions(elementId, list, options = {}) {
+        const sel = document.getElementById(elementId);
+        if (!sel) return;
 
-            let defaultText = '全拠点';
-            if (id === 'depBranch' || id === 'newBranch') defaultText = '指定なし (共通)';
-            else if (id === 'subjectBranchFilter') defaultText = '全拠点 (共通含む)';
+        const currentVal = sel.value;
+        sel.innerHTML = '';
 
-            sel.innerHTML = `<option value="">${defaultText}</option>`;
-            branches.forEach(b => {
-                const op = document.createElement('option');
-                op.value = b; op.text = b;
-                sel.appendChild(op);
-            });
+        // Default Option
+        if (options.defaultText !== undefined) {
+            const defOpt = document.createElement('option');
+            defOpt.value = options.defaultVal || '';
+            defOpt.text = options.defaultText;
+            sel.appendChild(defOpt);
+        }
 
-            if (currentVal) {
+        list.forEach(item => {
+            const op = document.createElement('option');
+            const val = options.valueKey ? item[options.valueKey] : item;
+            const txt = options.textKey ? item[options.textKey] : item;
+            op.value = val;
+            op.text = txt;
+
+            if (options.selectedVal && val === options.selectedVal) {
+                op.selected = true;
+            }
+            sel.appendChild(op);
+        });
+
+        // Auto-select Branch Logic
+        if (options.autoSelectBranch) {
+            if (currentVal && [...sel.options].some(o => o.value === currentVal)) {
                 sel.value = currentVal;
             } else if (currentUserBranch) {
                 if ([...sel.options].some(o => o.value === currentUserBranch)) {
                     sel.value = currentUserBranch;
                 }
             }
+        }
+    }
+
+    /**
+     * Populate Branch Filter (Shared)
+     */
+    function populateBranchFilter(branches) {
+        const ids = ['approveBranchFilter', 'paymentBranchFilter', 'reportBranchFilter', 'dailyReportBranchFilter', 'depBranch', 'subjectBranchFilter', 'newBranch', 'historyBranchFilter'];
+        ids.forEach(id => {
+            let defaultText = '全拠点';
+            if (id === 'depBranch' || id === 'newBranch') defaultText = '指定なし (共通)';
+            else if (id === 'subjectBranchFilter') defaultText = '全拠点 (共通含む)';
+
+            renderSelectOptions(id, branches, {
+                defaultText: defaultText,
+                autoSelectBranch: true
+            });
         });
     }
 

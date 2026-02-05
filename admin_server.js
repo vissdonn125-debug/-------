@@ -7,7 +7,7 @@
  */
 function getAdminDashboardData() {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') {
+    if (user.role !== ROLES.ADMIN) {
         throw new Error('管理者権限がありません。');
     }
 
@@ -83,7 +83,7 @@ function getAdminDashboardData() {
  */
 function processApplicationWithEdit(appId, action, details) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
@@ -106,7 +106,7 @@ function processApplicationWithEdit(appId, action, details) {
 
         // 支払済チェック
         var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
-        if (currentPayStatus === '支払済') {
+        if (currentPayStatus === PAYMENT_STATUS.PAID) {
             throw new Error('支払済みの申請は編集・承認・却下できません。支払管理画面で「未払い」に戻してから操作してください。');
         }
 
@@ -186,7 +186,7 @@ function processApplicationWithEdit(appId, action, details) {
  */
 function processReturn(appId, comment, details) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     // processApplicationWithEdit とほぼ同様だがステータスが違う
     // 共通化できるが、シンプルに分けて記述
@@ -209,7 +209,7 @@ function processReturn(appId, comment, details) {
 
         // 支払済チェック
         var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
-        if (currentPayStatus === '支払済') {
+        if (currentPayStatus === PAYMENT_STATUS.PAID) {
             throw new Error('支払済みの申請は差し戻しできません。支払管理画面で「未払い」に戻してから操作してください。');
         }
 
@@ -353,7 +353,7 @@ function api_getReceiptImage(fileId) {
  */
 function api_addSubject(name, taxRate, keywords, branch) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
@@ -374,7 +374,7 @@ function api_addSubject(name, taxRate, keywords, branch) {
  */
 function api_updateSubject(oldName, name, taxRate, keywords, branch) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
@@ -401,7 +401,7 @@ function api_updateSubject(oldName, name, taxRate, keywords, branch) {
  */
 function api_deleteSubject(name) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
@@ -442,7 +442,7 @@ function getSubjectListObject_(sheet) {
  */
 function api_getMonthlyReport(targetMonth, targetBranch) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     // 0. 前月繰越計算 (スナップショット利用)
     var carryOverBalance = getCarryOverWithSnapshot_(targetMonth, targetBranch);
@@ -579,7 +579,7 @@ function api_getMonthlyReport(targetMonth, targetBranch) {
  */
 function api_getDailyReport(targetDate, targetBranch) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
@@ -740,7 +740,7 @@ function getReportData_(targetDate) {
  */
 function api_registerDeposit(date, amount, memo, type, branch) {
     var user = getCurrentUserInfo();
-    if (user.role !== 'ADMIN') throw new Error('権限がありません');
+    if (user.role !== ROLES.ADMIN) throw new Error('権限がありません');
 
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);

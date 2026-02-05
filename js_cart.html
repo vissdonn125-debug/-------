@@ -4,6 +4,8 @@
      */
 
     // ========== Camera & OCR ==========
+    let lastHistoryList = [];
+
     function openCamera() { document.getElementById('rFile').click(); }
 
     function handleFile(input) {
@@ -374,36 +376,61 @@
         const listEl = document.getElementById('historyInnerList');
         if (listEl) listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">読み込んでいます...</div>';
 
-        google.script.run.withSuccessHandler(list => {
-            if (!list || list.length === 0) {
-                listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">履歴はありません</div>';
-                return;
-            }
+        // Reset filter
+        const brFilter = document.getElementById('historyBranchFilter');
+        if (brFilter) brFilter.value = '';
 
-            listEl.innerHTML = list.map(item => {
-                let thumbHtml = '';
-                if (item.firstImageId) {
-                    const imgId = 'h-img-' + item.applicationId;
-                    const thumbUrl = 'https://drive.google.com/thumbnail?id=' + item.firstImageId + '&sz=w200';
-                    thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; overflow:hidden; background:#f1f5f9; margin-right:12px; flex-shrink:0; cursor:pointer;" onclick="zoomImage('${imgId}')">
+        google.script.run.withSuccessHandler(list => {
+            lastHistoryList = list || [];
+            renderHistoryCards(lastHistoryList);
+        }).withFailureHandler(e => {
+            listEl.innerHTML = '<div style="color:red; text-align:center;">読み込み失敗</div>';
+            showToast('エラー: ' + e.message, 'error');
+        }).api_getMyHistory(targetMonth);
+    }
+
+    function renderHistoryCards(list) {
+        const listEl = document.getElementById('historyInnerList');
+        if (!listEl) return;
+
+        // Ensure filters are applied
+        const brFilter = document.getElementById('historyBranchFilter');
+        const selectedBranch = brFilter ? brFilter.value : '';
+
+        let filtered = list;
+        if (selectedBranch) {
+            filtered = list.filter(item => item.dept === selectedBranch);
+        }
+
+        if (!filtered || filtered.length === 0) {
+            listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">履歴はありません</div>';
+            return;
+        }
+
+        listEl.innerHTML = filtered.map(item => {
+            let thumbHtml = '';
+            if (item.firstImageId) {
+                const imgId = 'h-img-' + item.applicationId;
+                const thumbUrl = 'https://drive.google.com/thumbnail?id=' + item.firstImageId + '&sz=w200';
+                thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; overflow:hidden; background:#f1f5f9; margin-right:12px; flex-shrink:0; cursor:pointer;" onclick="zoomImage('${imgId}')">
               <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" 
                    data-file-id="${item.firstImageId}" 
                    src="${thumbUrl}" 
                    loading="lazy"
                    onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.8rem; color:#94a3b8;\'>📷</span>';">
            </div>`;
-                } else {
-                    thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#cbd5e1; margin-right:12px; flex-shrink:0;">
+            } else {
+                thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#cbd5e1; margin-right:12px; flex-shrink:0;">
               <span>📷</span>
            </div>`;
-                }
+            }
 
-                const canEdit = (item.statusLabel !== APP_CONST.STATUS.APPROVED && item.statusLabel !== APP_CONST.STATUS.FIXED);
-                const editBtn = canEdit
-                    ? `<button onclick="loadApplicationForEdit('${item.applicationId}')" style="margin-top:8px; padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-size:0.8rem; color:#334155; cursor:pointer;">✎ 編集・再申請</button>`
-                    : '';
+            const canEdit = (item.statusLabel !== APP_CONST.STATUS.APPROVED && item.statusLabel !== APP_CONST.STATUS.FIXED);
+            const editBtn = canEdit
+                ? `<button onclick="loadApplicationForEdit('${item.applicationId}')" style="margin-top:8px; padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-size:0.8rem; color:#334155; cursor:pointer;">✎ 編集・再申請</button>`
+                : '';
 
-                return `
+            return `
           <div class="history-item">
             <div style="display:flex; align-items:center; flex:1;">
                ${thumbHtml}
@@ -418,12 +445,7 @@
             </div>
           </div>
       `;
-            }).join('');
-
-        }).withFailureHandler(e => {
-            listEl.innerHTML = '<div style="color:red; text-align:center;">読み込み失敗</div>';
-            showToast('エラー: ' + e.message, 'error');
-        }).api_getMyHistory(targetMonth);
+        }).join('');
     }
 
     function loadApplicationForEdit(appId) {

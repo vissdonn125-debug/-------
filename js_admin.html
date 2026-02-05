@@ -148,8 +148,8 @@
       </div>
     `;
 
-        let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
-        app.details.forEach(d => {
+        let bodyHtml = '<div class="ac-body" style="display:flex; flex-direction:column; gap:24px;">';
+        app.details.forEach((d, idx) => {
             let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
                 subjectMaster.map(s => {
                     const safeS = escapeHtml(s);
@@ -171,17 +171,33 @@
             const safeVendor = escapeHtml(d.vendor || '');
             const safePurpose = escapeHtml(d.purpose || '');
 
+            // Image display logic
+            let thumbInner = '';
+            if (d.fileId) {
+                const thumbUrl = 'https://drive.google.com/thumbnail?id=' + d.fileId + '&sz=w200';
+                thumbInner = `<img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" 
+                   src="${thumbUrl}" 
+                   data-file-id="${d.fileId}"
+                   loading="lazy"
+                   onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<div style=\\'width:100%; height:100%; background:#f1f5f9; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#94a3b8; font-weight:bold;\\'><span style=\\'font-size:1.5rem;\\'>⚠️</span><span style=\\'font-size:0.7rem; margin-top:4px;\\'>読込失敗</span></div>';">`;
+            } else {
+                thumbInner = `<div style="width:100%; height:100%; background:#f1f5f9; display:flex; flex-direction:column; justify-content:center; align-items:center; color:#cbd5e1;">
+                    <span style="font-size:2rem;">📷</span>
+                    <span style="font-size:0.75rem; font-weight:600; margin-top:4px; color:#94a3b8;">画像なし</span>
+                 </div>`;
+            }
+
             bodyHtml += `
         <div class="detail-item" id="det-${d.detailId}" ${isDuplicate ? 'style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444; padding: 12px 0 12px 12px; box-sizing: border-box;"' : ''}>
+          <!-- Detail Header -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(0,0,0,0.05);">
+             <span style="font-weight:bold; color:#64748b; font-size:0.9rem;">#${idx + 1}</span>
+             ${app.details.length > 1 ? `<span style="font-size:0.75rem; background:#e2e8f0; color:#475569; padding:2px 8px; border-radius:12px;">${idx + 1} / ${app.details.length}</span>` : ''}
+          </div>
           ${isDuplicate ? '<div style="font-size: 0.8rem; color: #dc2626; font-weight: 700; margin-bottom: 8px;">⚠️ 重複の可能性があります</div>' : ''}
           <div class="d-row">
             <div class="d-thumb-box" onclick="zoomImage('${imgId}')">
-              <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" 
-                   src="${d.fileId ? 'https://drive.google.com/thumbnail?id=' + d.fileId + '&sz=w200' : ''}" 
-                   data-file-id="${d.fileId || ''}"
-                   loading="lazy"
-                   onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.6rem; color:#ccc;\'>No Image</span>';">
-              ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
+              ${thumbInner}
             </div>
             <div class="d-inputs">
               <!-- Line 1: Date & Vendor -->

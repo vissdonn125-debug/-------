@@ -240,7 +240,7 @@
      * Populate Branch Filter (Shared)
      */
     function populateBranchFilter(branches) {
-        const ids = ['approveBranchFilter', 'paymentBranchFilter', 'reportBranchFilter', 'dailyReportBranchFilter', 'depBranch', 'subjectBranchFilter', 'newBranch'];
+        const ids = ['approveBranchFilter', 'paymentBranchFilter', 'reportBranchFilter', 'dailyReportBranchFilter', 'depBranch', 'subjectBranchFilter', 'newBranch', 'historyBranchFilter'];
         ids.forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
@@ -265,5 +265,23 @@
                 }
             }
         });
+    }
+
+    // ========== Help Modal ==========
+    function showHelp() {
+        // 通常のヘルプ表示 (Admin Guideの内容と共通なら同じでもよいが、ここでは分けておく)
+        // 今回の要件では「使い方ガイド」と「管理者ガイド」がある
+        document.getElementById('helpModal').style.display = 'flex';
+        // Admin用セクションの表示切替などが必要ならここで行う
+    }
+
+    function showAdminHelp() {
+        // 管理者ガイド用の表示 (必要ならAdmin専用コンテンツを表示)
+        // 現状、共通の helpModal を使うなら同じで良い
+        document.getElementById('helpModal').style.display = 'flex';
+    }
+
+    function closeHelp() {
+        document.getElementById('helpModal').style.display = 'none';
     }
 </script>

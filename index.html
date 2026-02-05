@@ -71,6 +71,11 @@
             onchange="loadHistory()">
             <option value="ALL">全期間</option>
           </select>
+          <select id="historyBranchFilter"
+            style="padding:8px; font-size:1rem; border-radius:8px; border:1px solid #cbd5e1; background:white; margin-left:8px;"
+            onchange="renderHistoryCards(lastHistoryList)">
+            <option value="">全拠点</option>
+          </select>
         </div>
         <div id="historyInnerList">
           <div style="text-align:center; color:#64748b; margin-top:40px;">読み込んでいます...</div>

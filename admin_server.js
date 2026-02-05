@@ -995,6 +995,11 @@ function api_updatePaymentStatus(appIds, newStatus) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
+    // 配列でない場合は配列化
+    if (!Array.isArray(appIds)) {
+        appIds = [appIds];
+    }
+
     var sheet = getSheet_(SHEET_NAMES.HEADER);
     var lastRow = sheet.getLastRow();
     if (lastRow <= 1) return { count: 0 };

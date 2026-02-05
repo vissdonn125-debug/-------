@@ -1,0 +1,451 @@
+<script>
+    /**
+     * js_cart.html - User View, Camera, Cart, and History
+     */
+
+    // ========== Camera & OCR ==========
+    function openCamera() { document.getElementById('rFile').click(); }
+
+    function handleFile(input) {
+        if (!input.files[0]) return;
+        const file = input.files[0];
+        const id = Date.now();
+        const isContinueMode = document.getElementById('continueMode').checked;
+
+        const reader = new FileReader();
+        reader.onload = e => {
+            const dataUrl = e.target.result;
+
+            // 続きモードの場合、最後の明細に追加
+            if (isContinueMode && cartItems.length > 0) {
+                const lastItem = cartItems[cartItems.length - 1];
+
+                // 画像を配列で保持（初回は配列化）
+                if (!Array.isArray(lastItem.imgData)) {
+                    lastItem.imgData = [lastItem.imgData];
+                }
+                lastItem.imgData.push(dataUrl);
+
+                lastItem.status = 'analyzing';
+                renderCart();
+                showToast('続きを解析中...');
+
+                const base64 = dataUrl.split(',')[1];
+                const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+
+                google.script.run.withSuccessHandler(res => {
+                    lastItem.status = 'done';
+                    lastItem.amount += res.ocr.amount; // 金額を加算
+
+                    // receiptUrlも配列で保持
+                    if (!Array.isArray(lastItem.receiptUrl)) {
+                        lastItem.receiptUrl = [lastItem.receiptUrl];
+                    }
+                    lastItem.receiptUrl.push(res.receiptUrl);
+
+                    renderCart();
+                    showToast('続きを追加: +¥' + res.ocr.amount.toLocaleString());
+                    document.getElementById('continueMode').checked = false; // チェックを外す
+                }).withFailureHandler(e => {
+                    lastItem.status = 'error';
+                    renderCart();
+                    showToast('解析失敗: 手入力してください', 'error');
+                }).uploadReceiptForOcr(base64, mimeType);
+
+            } else {
+                // 通常モード：新しい明細を作成
+                const today = new Date().toISOString().split('T')[0];
+                const item = { id: id, status: 'analyzing', amount: 0, vendor: '', subject: '', invoiceReg: '不明', taxRate: 10, usageDate: today, purpose: '', imgData: dataUrl, receiptUrl: null };
+                cartItems.push(item);
+                renderCart();
+                showToast('解析を開始しました');
+
+                const base64 = dataUrl.split(',')[1];
+                const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+
+                google.script.run.withSuccessHandler(res => {
+                    const target = cartItems.find(i => i.id === id);
+                    if (target) {
+                        target.status = 'done';
+                        target.amount = res.ocr.amount;
+                        target.vendor = res.ocr.vendor;
+                        target.subject = res.ocr.subject;
+                        target.invoiceReg = res.ocr.invoiceReg || '不明';
+                        target.taxRate = res.ocr.taxRate || 10;
+                        target.usageDate = res.ocr.date || today;
+                        target.receiptUrl = res.receiptUrl;
+                        renderCart();
+                        showToast('解析完了: ' + (target.vendor || '店名不明'));
+                    }
+                }).withFailureHandler(e => {
+                    const target = cartItems.find(i => i.id === id);
+                    if (target) {
+                        target.status = 'error';
+                        renderCart();
+                        showToast('解析失敗: 手入力してください', 'error');
+                    }
+                }).uploadReceiptForOcr(base64, mimeType);
+            }
+
+            setTimeout(() => { document.getElementById('rFile').value = ''; }, 500);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ========== Cart Operations ==========
+    function addManualItem() {
+        const id = Date.now();
+        const today = new Date().toISOString().split('T')[0];
+        const item = {
+            id: id,
+            status: 'done',
+            amount: 0,
+            vendor: '',
+            subject: '',
+            invoiceReg: '不明',
+            taxRate: 10,
+            usageDate: today,
+            purpose: '',
+            imgData: null,
+            receiptUrl: null
+        };
+        cartItems.push(item);
+        renderCart();
+        openEdit(id);
+        showToast('手入力明細を追加しました');
+    }
+
+    function renderCart() {
+        const list = document.getElementById('cartList');
+        list.innerHTML = '';
+        let total = 0;
+
+        // 編集モード表示
+        if (editingAppId) {
+            const warning = document.createElement('div');
+            warning.innerHTML = `<div style="background:#fff7ed; color:#c2410c; padding:8px 12px; margin-bottom:12px; border-radius:8px; font-size:0.9rem; display:flex; justify-content:space-between; align-items:center;">
+          <span>📝 過去の申請を編集中</span>
+          <button onclick="cancelEditMode()" style="background:none; border:1px solid #c2410c; border-radius:4px; color:#c2410c; padding:2px 8px; font-size:0.75rem;">キャンセル</button>
+        </div>`;
+            list.appendChild(warning);
+        }
+
+        if (cartItems.length === 0) {
+            list.innerHTML += '<div class="cart-empty">レシートを撮影してください</div>';
+            document.getElementById('totalDisplay').innerText = '0';
+            document.getElementById('submitBtn').disabled = true;
+            const btnInner = document.getElementById('submitBtnText');
+            if (btnInner) btnInner.innerText = 'まとめて申請';
+            return;
+        }
+
+        cartItems.forEach((item) => {
+            total += Number(item.amount || 0);
+            const div = document.createElement('div');
+            div.className = 'cart-item';
+            div.onclick = (e) => {
+                if (!e.target.closest('.cart-del-btn')) openEdit(item.id);
+            };
+
+            let overlay = item.status === 'analyzing' ? `<div class="analyzing-overlay"><div class="mini-spinner"></div></div>` : '';
+            let amtClass = item.amount > 0 ? 'cart-amount' : 'cart-amount zero';
+            let amtText = item.amount > 0 ? `¥${item.amount.toLocaleString()}` : '¥ -';
+            let statusText = item.status === 'analyzing' ? '解析中...' : (item.vendor || '店名不明');
+
+            let imgHtml = '';
+            const hasImgData = item.imgData && (Array.isArray(item.imgData) ? item.imgData.length > 0 : item.imgData);
+            const hasUrl = item.receiptUrl && (Array.isArray(item.receiptUrl) ? item.receiptUrl.length > 0 : item.receiptUrl);
+
+            if (hasImgData) {
+                const imgSrc = Array.isArray(item.imgData) ? item.imgData[0] : item.imgData;
+                const imgCount = Array.isArray(item.imgData) ? item.imgData.length : 1;
+                const badge = imgCount > 1 ? `<div style="position:absolute; top:4px; right:4px; background:#3b82f6; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem; font-weight:700;">×${imgCount}</div>` : '';
+                imgHtml = `<img src="${imgSrc}" class="cart-thumb">${badge}`;
+            } else if (hasUrl) {
+                const urls = Array.isArray(item.receiptUrl) ? item.receiptUrl : [item.receiptUrl];
+                const count = urls.length;
+                let firstId = null;
+                const m = urls[0].match(/id=([a-zA-Z0-9_-]+)/) || urls[0].match(/\/d\/([a-zA-Z0-9_-]+)/);
+                if (m) firstId = m[1];
+
+                if (firstId) {
+                    const imgId = 'cart-img-' + item.id;
+                    imgHtml = `<div class="cart-thumb" style="overflow:hidden; position:relative;">
+              <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+              <div style="position:absolute; top:4px; right:4px; background:#64748b; color:white; border-radius:8px; padding:2px 8px; font-size:0.8rem;">保存済×${count}</div>
+            </div>`;
+                    setTimeout(() => loadOneImage(firstId, imgId), 10);
+                } else {
+                    imgHtml = `<div class="cart-thumb" style="background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:0.8rem; font-weight:bold;"><span>📷 済×${count}</span></div>`;
+                }
+            } else {
+                imgHtml = `<div class="cart-thumb" style="background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#94a3b8; font-size:1.5rem;">✏️</div>`;
+            }
+
+            div.innerHTML = `
+      <div class="cart-item-header">
+        <div class="cart-thumb-box">
+          ${imgHtml}
+          ${overlay}
+        </div>
+        <div class="cart-item-content">
+          <div class="cart-info">
+            <div class="cart-meta">${item.subject ? `<span class="status-badge">${item.subject}</span>` : ''}</div>
+            <div class="cart-vendor">${statusText}</div>
+          </div>
+        </div>
+      </div>
+      <div class="cart-item-actions">
+        <div class="${amtClass}">${amtText}</div>
+        <button class="cart-del-btn" onclick="event.stopPropagation(); delCart(${item.id})">
+          <span>🗑️</span> 削除
+        </button>
+      </div>
+    `;
+            list.appendChild(div);
+        });
+        document.getElementById('totalDisplay').textContent = total.toLocaleString();
+        document.getElementById('submitBtn').disabled = false;
+
+        const btnInner = document.getElementById('submitBtnText');
+        if (btnInner) {
+            btnInner.innerText = editingAppId ? '更新して再申請' : 'まとめて申請';
+        }
+    }
+
+    function delCart(id) {
+        showConfirm('削除しますか？', () => {
+            cartItems = cartItems.filter(i => i.id !== id);
+            renderCart();
+        });
+    }
+
+    function cancelEditMode() {
+        showConfirm('編集内容を破棄して新規作成に戻りますか？', () => {
+            editingAppId = null;
+            cartItems = [];
+            renderCart();
+        });
+    }
+
+    // ========== Edit Modal (Cart Item) ==========
+    function openEdit(id) {
+        const item = cartItems.find(i => i.id === id);
+        if (!item) return;
+        editingId = id;
+
+        const imgBox = document.querySelector('.edit-img-box');
+        imgBox.innerHTML = '';
+
+        const hasImg = item.imgData && (Array.isArray(item.imgData) ? item.imgData.length > 0 : true);
+
+        if (hasImg) {
+            if (Array.isArray(item.imgData)) {
+                item.imgData.forEach((img, idx) => {
+                    const imgEl = document.createElement('img');
+                    imgEl.src = img;
+                    imgEl.className = 'edit-img';
+                    imgEl.style.marginBottom = idx < item.imgData.length - 1 ? '12px' : '0';
+                    imgEl.onclick = function () { zoomImageSrc(this.src); };
+                    imgBox.appendChild(imgEl);
+                });
+            } else {
+                const imgEl = document.createElement('img');
+                imgEl.src = item.imgData;
+                imgEl.className = 'edit-img';
+                imgEl.onclick = function () { zoomImageSrc(this.src); };
+                imgBox.appendChild(imgEl);
+            }
+            imgBox.style.display = 'block';
+        } else if (item.receiptUrl) {
+            imgBox.innerHTML = '';
+            let urls = [];
+            if (Array.isArray(item.receiptUrl)) urls = item.receiptUrl;
+            else if (typeof item.receiptUrl === 'string') urls = item.receiptUrl.split(',').filter(u => u.trim());
+
+            if (urls.length > 0) {
+                urls.forEach((u, i) => {
+                    const btn = document.createElement('div');
+                    btn.innerHTML = `<span>📷 保存済み画像 ${i + 1} を見る</span>`;
+                    btn.onclick = () => zoomImageSrc(u.trim());
+                    btn.style.cssText = 'padding:12px 20px; background:white; margin:6px; border-radius:12px; cursor:pointer; font-weight:bold; color:#3b82f6; display:flex; align-items:center; justify-content:center; gap:8px; width:80%; box-shadow:0 2px 5px rgba(0,0,0,0.1); transition:transform 0.1s;';
+                    btn.onmousedown = () => btn.style.transform = 'scale(0.96)';
+                    btn.onmouseup = () => btn.style.transform = 'scale(1)';
+                    imgBox.appendChild(btn);
+                });
+                imgBox.style.display = 'flex';
+                imgBox.style.flexDirection = 'column';
+            } else {
+                imgBox.style.display = 'none';
+            }
+        } else {
+            imgBox.style.display = 'none';
+        }
+
+        document.getElementById('eDate').value = item.usageDate || new Date().toISOString().split('T')[0];
+        document.getElementById('eAmt').value = item.amount || '';
+        document.getElementById('eTax').value = item.taxRate || 10;
+        document.getElementById('eVen').value = item.vendor || '';
+        document.getElementById('eSub').value = item.subject || '';
+        document.getElementById('ePurpose').value = item.purpose || '';
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function saveEdit() {
+        const item = cartItems.find(i => i.id === editingId);
+        if (item) {
+            item.usageDate = document.getElementById('eDate').value;
+            item.amount = Number(document.getElementById('eAmt').value);
+            item.taxRate = Number(document.getElementById('eTax').value);
+            item.vendor = document.getElementById('eVen').value;
+            item.subject = document.getElementById('eSub').value;
+            item.purpose = document.getElementById('ePurpose').value;
+            if (item.status !== 'analyzing') item.status = 'done';
+        }
+        renderCart();
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    function updateTaxRateBySubject() {
+        const subjectName = document.getElementById('eSub').value;
+        const subjectData = subjectMasterWithTax.find(s => s.name === subjectName);
+        if (subjectData) {
+            document.getElementById('eTax').value = subjectData.taxRate;
+        }
+    }
+    function closeEdit() { document.getElementById('editModal').style.display = 'none'; }
+
+    // ========== Submission ==========
+    function submitCart() {
+        if (cartItems.length === 0) return;
+        const invalid = cartItems.some(i => !i.amount || i.amount <= 0);
+        if (invalid) return showToast('金額が未入力の明細があります！', 'error');
+        const analyzing = cartItems.some(i => i.status === 'analyzing');
+        if (analyzing) return showToast('解析中の明細があります', 'error');
+
+        const isUpdate = !!editingAppId;
+        const msg = isUpdate
+            ? `修正内容で更新（再申請）しますか？\n合計 ¥${document.getElementById('totalDisplay').innerText}`
+            : `合計 ¥${document.getElementById('totalDisplay').innerText} で申請しますか？`;
+
+        showConfirm(msg, () => {
+            const applicantId = document.getElementById('applicantSelector').value;
+            const data = { applicantId: applicantId, items: cartItems };
+
+            showLoad(isUpdate ? '更新中...' : '申請送信中...');
+
+            const successHandler = (res) => {
+                hideLoad();
+                showToast(isUpdate ? '更新しました！' : '申請が完了しました！');
+                cartItems = [];
+                editingAppId = null;
+                renderCart();
+            };
+            const failureHandler = (e) => {
+                hideLoad();
+                showToast('送信失敗: ' + e.message, 'error');
+            };
+
+            if (isUpdate) {
+                google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_updateApplication(editingAppId, data);
+            } else {
+                google.script.run.withSuccessHandler(successHandler).withFailureHandler(failureHandler).api_submitExpense(data);
+            }
+        });
+    }
+
+    // ========== History ==========
+    function loadHistory() {
+        const picker = document.getElementById('historyMonthPicker');
+        if (picker.options.length <= 1) {
+            const now = new Date();
+            for (let i = 0; i < 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const val = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2);
+                const txt = d.getFullYear() + '年' + (d.getMonth() + 1) + '月';
+                const op = document.createElement('option');
+                op.value = val; op.text = txt;
+                if (i === 0) op.selected = true;
+                picker.appendChild(op);
+            }
+        }
+
+        const targetMonth = picker.value || '';
+        const listEl = document.getElementById('historyInnerList');
+        if (listEl) listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">読み込んでいます...</div>';
+
+        google.script.run.withSuccessHandler(list => {
+            if (!list || list.length === 0) {
+                listEl.innerHTML = '<div style="text-align:center; color:#64748b; margin-top:40px;">履歴はありません</div>';
+                return;
+            }
+
+            listEl.innerHTML = list.map(item => {
+                let thumbHtml = '';
+                if (item.firstImageId) {
+                    const imgId = 'h-img-' + item.applicationId;
+                    const thumbUrl = 'https://drive.google.com/thumbnail?id=' + item.firstImageId + '&sz=w200';
+                    thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; overflow:hidden; background:#f1f5f9; margin-right:12px; flex-shrink:0; cursor:pointer;" onclick="zoomImage('${imgId}')">
+              <img id="${imgId}" style="width:100%; height:100%; object-fit:cover;" 
+                   data-file-id="${item.firstImageId}" 
+                   src="${thumbUrl}" 
+                   loading="lazy"
+                   onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.8rem; color:#94a3b8;\'>📷</span>';">
+           </div>`;
+                } else {
+                    thumbHtml = `<div style="width:50px; height:50px; border-radius:6px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; color:#cbd5e1; margin-right:12px; flex-shrink:0;">
+              <span>📷</span>
+           </div>`;
+                }
+
+                const canEdit = (item.statusLabel !== APP_CONST.STATUS.APPROVED && item.statusLabel !== APP_CONST.STATUS.FIXED);
+                const editBtn = canEdit
+                    ? `<button onclick="loadApplicationForEdit('${item.applicationId}')" style="margin-top:8px; padding:6px 12px; border:1px solid #cbd5e1; border-radius:6px; background:white; font-size:0.8rem; color:#334155; cursor:pointer;">✎ 編集・再申請</button>`
+                    : '';
+
+                return `
+          <div class="history-item">
+            <div style="display:flex; align-items:center; flex:1;">
+               ${thumbHtml}
+               <div style="min-width:0;">
+                 <div style="font-size:0.85rem; color:#64748b; margin-bottom:2px;">${item.displayDate}</div>
+                 <div style="font-weight:bold; font-size:1rem; color:#1e293b; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${item.statusLabel}</div>
+               </div>
+            </div>
+            <div style="text-align:right;">
+               <div style="font-weight:900; font-size:1.1rem; color:#1e293b;">¥${(item.totalAmount || 0).toLocaleString()}</div>
+               ${editBtn}
+            </div>
+          </div>
+      `;
+            }).join('');
+
+        }).withFailureHandler(e => {
+            listEl.innerHTML = '<div style="color:red; text-align:center;">読み込み失敗</div>';
+            showToast('エラー: ' + e.message, 'error');
+        }).api_getMyHistory(targetMonth);
+    }
+
+    function loadApplicationForEdit(appId) {
+        const proceed = () => {
+            showLoad('申請データを取得中...');
+            google.script.run.withSuccessHandler(res => {
+                hideLoad();
+                editingAppId = appId;
+                cartItems = res.items;
+                renderCart();
+                switchView('userView');
+                showToast('編集モードになりました');
+            }).withFailureHandler(e => {
+                hideLoad();
+                showToast('取得エラー: ' + e.message, 'error');
+            }).api_getApplication(appId);
+        };
+
+        if (cartItems.length > 0) {
+            showConfirm('現在入力中の内容は破棄されますがよろしいですか？', proceed);
+        } else {
+            proceed();
+        }
+    }
+</script>

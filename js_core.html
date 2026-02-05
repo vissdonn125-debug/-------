@@ -1,0 +1,268 @@
+<script>
+    /**
+     * js_core.html - Core utilities and initialization
+     */
+
+    // ========== Global State ==========
+    const AppState = {
+        cartItems: [],
+        subjectMaster: [],
+        subjectMasterWithTax: [],
+        currentUserBranch: '',
+        editingId: null,
+        isAdminMode: false,
+        pendingAppId: null,
+        pendingAction: null,
+        allPendingList: [],
+        lastPaymentList: [],
+        editingAppId: null // ID of application being edited
+    };
+
+    // Global aliases for backward compatibility during refactor
+    // (These will eventually be replaced by AppState references)
+    // Proxy getters/setters could be used but direct assignment is safer for now.
+    let cartItems = [];
+    let subjectMaster = [];
+    let subjectMasterWithTax = [];
+    let currentUserBranch = '';
+    let editingId = null;
+    let isAdminMode = false;
+    let pendingAppId = null;
+    let pendingAction = null;
+    let allPendingList = [];
+    let lastPaymentList = [];
+    let editingAppId = null;
+
+    // Sync helpers (optional, or just update globals directly)
+    function syncGlobals() {
+        AppState.cartItems = cartItems;
+        // ... others
+    }
+
+    // ========== Constants ==========
+    // APP_CONST is defined in index.html via server injection
+
+    // ========== Initialization ==========
+    window.onload = function () {
+        google.script.run.withSuccessHandler(initData).getInitData();
+    };
+
+    function initData(data) {
+        const sel = document.getElementById('applicantSelector');
+        if (sel) {
+            sel.innerHTML = '';
+            data.list.forEach(u => {
+                const op = document.createElement('option');
+                op.value = u.id; op.text = u.name;
+                if (normalize(u.email) === normalize(data.currentUser.email)) op.selected = true;
+                sel.appendChild(op);
+            });
+        }
+
+        // Admin menu visibility
+        if (data.currentUser.role === 'ADMIN') {
+            const adminBlock = document.getElementById('adminMenuBlock');
+            if (adminBlock) adminBlock.style.display = 'block';
+        }
+
+        // Master Data
+        subjectMasterWithTax = data.subjectMaster || [];
+        subjectMaster = (data.subjectMaster || []).map(s => s.name);
+        currentUserBranch = data.currentUser.branch || '';
+
+        // Initial Date
+        const now = new Date();
+        const ym = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
+        const ymd = ym + '-' + ('0' + now.getDate()).slice(-2);
+
+        const reportPicker = document.getElementById('reportMonthPicker');
+        if (reportPicker) reportPicker.value = ym;
+
+        const dailyPicker = document.getElementById('dailyReportMonthPicker');
+        if (dailyPicker) {
+            dailyPicker.type = 'date';
+            dailyPicker.value = ymd;
+        }
+    }
+
+    // ========== Navigation ==========
+    function switchView(viewId) {
+        document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+
+        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+
+        // Update Nav State
+        if (viewId === 'userView') {
+            const btn = document.getElementById('navApply');
+            if (btn) btn.classList.add('active');
+            setBodyScroll(false);
+        } else if (viewId === 'historyView') {
+            const btn = document.getElementById('navHistory');
+            if (btn) btn.classList.add('active');
+            setBodyScroll(false);
+        } else if (viewId === 'menuView' || viewId.startsWith('report')) {
+            const btn = document.getElementById('navMenu');
+            if (btn) btn.classList.add('active');
+            setBodyScroll(false);
+        } else if (viewId === 'adminView' || viewId === 'paymentView') {
+            const btn = document.getElementById('navMenu');
+            if (btn) btn.classList.add('active');
+            setBodyScroll(true); // Allow scroll for Admin
+        }
+    }
+
+    function setBodyScroll(scrollable) {
+        const overflow = scrollable ? 'auto' : 'hidden';
+        const height = scrollable ? 'auto' : '100dvh';
+        document.documentElement.style.overflowY = overflow;
+        document.body.style.overflowY = overflow;
+        document.body.style.height = height;
+    }
+
+    // ========== Utilities ==========
+    function showLoad(txt) {
+        document.getElementById('loadText').innerText = txt;
+        document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    function hideLoad() {
+        document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    function showToast(msg, type = 'normal') {
+        const t = document.getElementById('toast');
+        t.innerText = msg;
+        t.className = type === 'error' ? 'show error' : (type === 'success' ? 'show success' : 'show');
+        setTimeout(() => { t.classList.remove('show'); }, 3000);
+    }
+
+    function normalize(s) {
+        return String(s || '').trim().toLowerCase();
+    }
+
+    function escapeHtml(str) {
+        if (typeof str !== 'string') return str;
+        return str.replace(/[&<>"']/g, function (match) {
+            return {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            }[match];
+        });
+    }
+
+    // ========== Common UI Modals ==========
+    function showConfirm(msg, onOk) {
+        const d = document.getElementById('confirmModal');
+        const m = document.getElementById('confirmMessage');
+        const ok = document.getElementById('confirmOkBtn');
+        const ng = document.getElementById('confirmCancelBtn');
+
+        if (!d || !m || !ok || !ng) {
+            if (confirm(msg)) if (onOk) onOk();
+            return;
+        }
+
+        m.textContent = msg;
+        d.style.display = 'flex';
+
+        const newOk = ok.cloneNode(true);
+        ok.parentNode.replaceChild(newOk, ok);
+        const newNg = ng.cloneNode(true);
+        ng.parentNode.replaceChild(newNg, ng);
+
+        newOk.onclick = () => {
+            d.style.display = 'none';
+            if (onOk) onOk();
+        };
+        newNg.onclick = () => {
+            d.style.display = 'none';
+        };
+    }
+
+    function showHelp() {
+        document.getElementById('helpModal').style.display = 'flex';
+    }
+    function closeHelp() {
+        document.getElementById('helpModal').style.display = 'none';
+    }
+
+    function openDepositModal() {
+        document.getElementById('depositModal').style.display = 'flex';
+        document.getElementById('depDate').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('depAmt').value = '';
+        document.getElementById('depMemo').value = '';
+    }
+    function closeDepositModal() {
+        document.getElementById('depositModal').style.display = 'none';
+    }
+    function registerDeposit() {
+        const type = document.getElementById('depType').value;
+        const date = document.getElementById('depDate').value;
+        const amt = document.getElementById('depAmt').value;
+        const memo = document.getElementById('depMemo').value;
+        const branch = document.getElementById('depBranch').value;
+
+        if (!date || !amt) {
+            showToast('日付と金額は必須です', 'error');
+            return;
+        }
+
+        showLoad('登録処理中...');
+        google.script.run.withSuccessHandler(res => {
+            hideLoad();
+            closeDepositModal();
+            showToast(type + 'を登録しました');
+        }).withFailureHandler(e => {
+            hideLoad();
+            showToast('エラー: ' + e.message, 'error');
+        }).api_registerDeposit(date, Number(amt), memo, type, branch);
+    }
+
+    // ========== Image Zoom ==========
+    function zoomImage(imgIdOrElementId) {
+        const img = document.getElementById(imgIdOrElementId);
+        if (img && img.src) {
+            zoomImageSrc(img.src);
+        }
+    }
+    function zoomImageSrc(src) {
+        document.getElementById('zoomImg').src = src;
+        document.getElementById('imageModal').style.display = 'flex';
+    }
+
+    // ========== Generic Helpers ==========
+    /**
+     * Populate Branch Filter (Shared)
+     */
+    function populateBranchFilter(branches) {
+        const ids = ['approveBranchFilter', 'paymentBranchFilter', 'reportBranchFilter', 'dailyReportBranchFilter', 'depBranch', 'subjectBranchFilter', 'newBranch'];
+        ids.forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            const currentVal = sel.value;
+
+            let defaultText = '全拠点';
+            if (id === 'depBranch' || id === 'newBranch') defaultText = '指定なし (共通)';
+            else if (id === 'subjectBranchFilter') defaultText = '全拠点 (共通含む)';
+
+            sel.innerHTML = `<option value="">${defaultText}</option>`;
+            branches.forEach(b => {
+                const op = document.createElement('option');
+                op.value = b; op.text = b;
+                sel.appendChild(op);
+            });
+
+            if (currentVal) {
+                sel.value = currentVal;
+            } else if (currentUserBranch) {
+                if ([...sel.options].some(o => o.value === currentUserBranch)) {
+                    sel.value = currentUserBranch;
+                }
+            }
+        });
+    }
+</script>

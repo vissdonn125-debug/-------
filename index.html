@@ -310,6 +310,28 @@
             </select>
           </div>
 
+          <div style="position: relative;">
+            <div
+              style="position:absolute; left:12px; top:50%; transform:translateY(-50%); pointer-events:none; font-size:1.1rem;">
+              🏢</div>
+            <select id="approveBranchFilter" style="
+                padding: 10px 14px 10px 42px; 
+                border-radius: 20px; 
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                background: rgba(255,255,255,0.1); 
+                color: white; 
+                font-size: 0.95rem; 
+                font-weight: 500; 
+                min-width: 150px;
+                appearance: none;
+                cursor: pointer;
+                transition: all 0.2s;
+              " onfocus="this.style.background='rgba(255,255,255,0.2)'"
+              onblur="this.style.background='rgba(255,255,255,0.1)'">
+              <option value="" style="color:#333;">全拠点</option>
+            </select>
+          </div>
+
           <div id="filterTotalDisplay" style="
             display: none; padding: 6px 14px; border-radius: 20px; 
             background: rgba(16, 185, 129, 0.2);
@@ -359,6 +381,15 @@
               <select id="paymentApplicantFilter" class="filter-input" style="min-width:120px;"
                 onchange="filterPaymentList()">
                 <option value="">全員</option>
+              </select>
+            </div>
+          </div>
+          <div class="filter-group">
+            <span class="filter-label">拠点</span>
+            <div class="filter-pill">
+              <select id="paymentBranchFilter" class="filter-input" style="min-width:120px;"
+                onchange="filterPaymentList()">
+                <option value="">全拠点</option>
               </select>
             </div>
           </div>
@@ -455,6 +486,11 @@
     <div id="subjectModal" class="master-modal">
       <div class="master-box" style="width: 90%; max-width: 400px;">
         <h3>科目マスタ</h3>
+        <select id="subjectBranchFilter"
+          style="font-size:1.1rem; padding:8px; border-radius:8px; border:1px solid #e2e8f0; width:100%; margin-bottom:12px; box-sizing:border-box;"
+          onchange="renderSubjectList()">
+          <option value="">全拠点 (共通含む)</option>
+        </select>
         <div class="input-group">
           <label>科目名</label>
           <input id="newSubject" type="text" placeholder="例: 消耗品費">
@@ -468,6 +504,13 @@
             <label>キーワード</label>
             <input id="newKw" type="text" placeholder="任意">
           </div>
+        </div>
+        <div class="input-group">
+          <label>拠点 (指定なしで共通)</label>
+          <select id="newBranch"
+            style="padding: 12px; font-size: 1rem; border-radius: 8px; border: 1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+            <option value="">指定なし (共通)</option>
+          </select>
         </div>
         <div style="margin-top:8px; display:flex; justify-content:flex-end; gap:8px;">
           <button id="updateSubBtn" onclick="updateSubject()"
@@ -689,7 +732,10 @@
   <script>
     var APP_CONST = <?!= JSON.stringify(getAllConstants()) ?>;
   </script>
-  <?!= include('js'); ?>
+  <?!= include('js_core'); ?>
+  <?!= include('js_cart'); ?>
+  <?!= include('js_admin'); ?>
+  <?!= include('js_report'); ?>
 </body>
 
 </html>

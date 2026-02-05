@@ -109,3 +109,11 @@ var BRANCH_MASTER_COL = {
   NAME: 2,
   COL_COUNT: 2
 };
+
+var SUBJECT_MASTER_COL = {
+  NAME: 1,
+  TAX_RATE: 2,
+  KEYWORDS: 3,
+  BRANCH: 4, // ★追加: 拠点
+  COL_COUNT: 4
+};

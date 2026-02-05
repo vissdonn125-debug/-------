@@ -1,0 +1,125 @@
+<script>
+    /**
+     * js_report.html - Monthly and Daily Reports
+     */
+
+    // ========== Monthly Report ==========
+    function loadMonthlyReport() {
+        const m = document.getElementById('reportMonthPicker').value;
+        if (!m) return;
+
+        document.getElementById('monthlyGrid').innerHTML = '<tr><td colspan="100" style="text-align:center;">読み込み中...</td></tr>';
+
+        google.script.run.withSuccessHandler(res => {
+            renderMonthlyReport(res);
+        }).withFailureHandler(e => {
+            showToast('レポート取得失敗: ' + e.message, 'error');
+        }).api_getMonthlyReport(m, document.getElementById('reportBranchFilter').value);
+    }
+
+    function renderMonthlyReport(data) {
+        // Scorecard
+        const sc = data.scorecard;
+        document.getElementById('repCarry').innerText = '¥' + data.carryOver.toLocaleString();
+        document.getElementById('repInc').innerText = '¥' + sc.income.toLocaleString();
+        document.getElementById('repExp').innerText = '¥' + sc.expense.toLocaleString();
+        document.getElementById('repBal').innerText = '¥' + data.totalBalance.toLocaleString();
+
+        // Grid
+        const grid = data.grid;
+        const tbl = document.getElementById('monthlyGrid');
+        let thHtml = '<thead><tr><th>日付</th>';
+        grid.subjects.forEach(s => thHtml += `<th>${s}</th>`);
+        thHtml += '<th>入金</th><th>出金</th><th>残高</th></tr></thead>';
+
+        let tbHtml = '<tbody>';
+        grid.days.forEach(day => {
+            const parts = day.split('-');
+            const dLabel = `${Number(parts[1])}/${Number(parts[2])}`;
+            let rowHtml = `<tr><td>${dLabel}</td>`;
+            let dData = grid.data[day];
+
+            grid.subjects.forEach(sub => {
+                const val = dData.subjects[sub] || 0;
+                rowHtml += `<td style="color:${val === 0 ? '#cbd5e1' : '#0f172a'}">¥${val.toLocaleString()}</td>`;
+            });
+
+            rowHtml += `<td style="color:#059669; font-weight:bold;">¥${dData.income.toLocaleString()}</td>`;
+            rowHtml += `<td style="color:#dc2626; font-weight:bold;">¥${dData.expense.toLocaleString()}</td>`;
+            rowHtml += `<td style="font-weight:900;">¥${dData.balance.toLocaleString()}</td>`;
+
+            rowHtml += `</tr>`;
+            tbHtml += rowHtml;
+        });
+        tbHtml += '</tbody>';
+        tbl.innerHTML = thHtml + tbHtml;
+
+        // Invoice Summary
+        const invBody = document.getElementById('invoiceBody');
+        const inv = data.invoice;
+        let invHtml = '';
+
+        // Total
+        invHtml += '<tr style="background:#f1f5f9;"><td colspan="4" style="font-weight:bold; text-align:left;">▼ 全体集計</td></tr>';
+
+        const renderRow = (label, obj, prefix = '') => {
+            let h = '';
+            Object.keys(obj).forEach(rate => {
+                if (obj[rate] > 0) {
+                    h += `<tr><td style="text-align:left;">${prefix}${label}</td><td>${rate}%</td><td style="font-weight:bold;">¥${obj[rate].toLocaleString()}</td></tr>`;
+                }
+            });
+            return h;
+        };
+
+        invHtml += renderRow('適格(あり)', inv.total.withInvoice);
+        invHtml += renderRow('適格(なし)', inv.total.withoutInvoice);
+        invHtml += renderRow('不明', inv.total.unknown);
+
+        // By Subject
+        if (inv.bySubject) {
+            Object.keys(inv.bySubject).sort().forEach(sub => {
+                const sObj = inv.bySubject[sub];
+                let hasData = false;
+                ['withInvoice', 'withoutInvoice', 'unknown'].forEach(k => {
+                    Object.values(sObj[k]).forEach(v => { if (v > 0) hasData = true; });
+                });
+
+                if (hasData) {
+                    invHtml += `<tr style="background:#f8fafc;"><td colspan="4" style="font-weight:bold; text-align:left; color:#1e293b;">▼ ${sub}</td></tr>`;
+                    invHtml += renderRow('適格(あり)', sObj.withInvoice, '　');
+                    invHtml += renderRow('適格(なし)', sObj.withoutInvoice, '　');
+                    invHtml += renderRow('不明', sObj.unknown, '　');
+                }
+            });
+        }
+
+        if (invHtml === '') invHtml = '<tr><td colspan="3" style="text-align:center; color:#94a3b8;">データなし</td></tr>';
+        invBody.innerHTML = invHtml;
+    }
+
+    // ========== Daily Report ==========
+    function loadDailyReport() {
+        const m = document.getElementById('dailyReportMonthPicker').value;
+        if (!m) return;
+        const b = document.getElementById('dailyReportBranchFilter') ? document.getElementById('dailyReportBranchFilter').value : '';
+        const el = document.getElementById('dailyPersonList');
+        el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
+
+        google.script.run.withSuccessHandler(res => {
+            if (res.list.length === 0) {
+                el.innerHTML = '<div style="text-align:center; color:#94a3b8;">データがありません</div>';
+                return;
+            }
+            el.innerHTML = res.list.map(p => `
+        <div style="background:white; padding:16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+          <div style="font-weight:bold; font-size:1.1rem;">${p.name}</div>
+          <div style="font-weight:900; font-size:1.3rem; color:#059669;">¥${p.total.toLocaleString()}</div>
+        </div>
+      `).join('');
+        }).withFailureHandler(e => {
+            el.innerHTML = 'エラー';
+            showToast(e.message, 'error');
+        }).api_getDailyReport(m, b);
+    }
+</script>

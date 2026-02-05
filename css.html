@@ -1830,4 +1830,231 @@
     color: var(--text);
     font-weight: 500;
   }
+
+  /* ========== Admin Card Layout Fixes ========== */
+  .admin-card {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(226, 232, 240, 0.6);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .ac-header {
+    padding: 16px;
+    background: linear-gradient(to right, #f8fafc, #ffffff);
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .ac-user {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .ac-dept {
+    font-size: 0.8rem;
+    color: #64748b;
+    background: #f1f5f9;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+  }
+
+  .ac-total {
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--primary);
+  }
+
+  .ac-body {
+    padding: 16px;
+  }
+
+  .ac-footer {
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  /* Detail Item Layout */
+  .detail-item {
+    background: #fff;
+    border-radius: 12px;
+    border: 1px solid #f1f5f9;
+    padding: 12px;
+    width: 100%;
+  }
+
+  .d-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  /* Mobile responsive layout */
+  @media (max-width: 600px) {
+    .d-row {
+      flex-direction: column;
+      /* Stack vertically on small screens */
+    }
+  }
+
+  .d-thumb-box {
+    width: 120px;
+    height: 160px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f1f5f9;
+    flex-shrink: 0;
+    cursor: zoom-in;
+    position: relative;
+  }
+
+  @media (max-width: 600px) {
+    .d-thumb-box {
+      width: 100%;
+      height: 200px;
+      margin-bottom: 12px;
+    }
+  }
+
+  .d-inputs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .d-row-line {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+  }
+
+  /* PC Layout for Input Groups */
+  .input-group-compact {
+    display: flex;
+    flex-direction: row;
+    /* Label | Input */
+    align-items: center;
+    gap: 12px;
+  }
+
+  .input-group-compact label {
+    font-size: 0.85rem;
+    color: #64748b;
+    font-weight: 600;
+    width: 60px;
+    /* Default width */
+    min-width: 60px;
+    text-align: right;
+  }
+
+  /* Wider label for Invoice */
+  .input-group-compact.label-wide label {
+    width: 90px;
+    min-width: 90px;
+  }
+
+  /* Flex Utility Classes */
+  .flex-1 {
+    flex: 1;
+  }
+
+  .flex-1-2 {
+    flex: 1.2;
+  }
+
+  .flex-1-5 {
+    flex: 1.5;
+  }
+
+  .flex-1-8 {
+    flex: 1.8;
+  }
+
+  .flex-2 {
+    flex: 2;
+  }
+
+  .flex-2-2 {
+    flex: 2.2;
+  }
+
+  .flex-2-5 {
+    flex: 2.5;
+  }
+
+  .flex-4 {
+    flex: 4;
+  }
+
+  /* Mobile Layout */
+
+  /* Mobile Layout */
+  @media (max-width: 600px) {
+    .d-inputs {
+      /* Flex default is fine */
+    }
+
+    .d-row-line {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    /* Revert to Stacked Layout on Mobile */
+    .input-group-compact {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      width: 100% !important;
+      /* Force full width */
+    }
+
+    .input-group-compact label,
+    .input-group-compact.label-wide label {
+      width: auto;
+      min-width: 0;
+      text-align: left;
+    }
+  }
+
+  .input-group-compact input,
+  .input-group-compact select,
+  .input-group-compact textarea {
+    padding: 10px;
+    /* Taller input */
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 1rem;
+    /* Larger text */
+    /* Allow input to grow */
+    display: block;
+    width: 100%;
+    /* Fallback */
+    flex: 1;
+    min-width: 0;
+    /* Prevent overflow in flex items */
+    box-sizing: border-box;
+    background: #fff;
+  }
+
+  /* Fix for payment view filter overflow */
+  @media (max-width: 600px) {
+    .filter-area {
+      flex-direction: column;
+      align-items: stretch;
+    }
+  }
 </style>

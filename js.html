@@ -2,6 +2,7 @@
   let cartItems = [];
   let subjectMaster = [];
   let subjectMasterWithTax = []; // 税率情報付き科目マスタ
+  let currentUserBranch = ''; // ★追加: 自分の拠点
   let editingId = null;
   let isAdminMode = false;
   let pendingAppId = null;
@@ -45,6 +46,10 @@
     const now = new Date();
     const ym = now.getFullYear() + '-' + ('0' + (now.getMonth() + 1)).slice(-2);
     const ymd = ym + '-' + ('0' + now.getDate()).slice(-2);
+
+    // ★追加: 自分の拠点を保存
+    currentUserBranch = data.currentUser.branch || ''; // backend user object needs branch
+
 
     document.getElementById('reportMonthPicker').value = ym;
 
@@ -777,18 +782,39 @@
    * 各種レポート画面の拠点フィルタを生成
    */
   function populateBranchFilter(branches) {
-    const ids = ['reportBranchFilter', 'dailyReportBranchFilter', 'depBranch'];
+    // 承認, 支払い, 月次, 日次, 入金, 科目フィルタ, 科目編集
+    const ids = ['approveBranchFilter', 'paymentBranchFilter', 'reportBranchFilter', 'dailyReportBranchFilter', 'depBranch', 'subjectBranchFilter', 'newBranch'];
+
     ids.forEach(id => {
       const sel = document.getElementById(id);
       if (!sel) return;
       const currentVal = sel.value;
-      sel.innerHTML = (id === 'depBranch' ? '<option value="">指定なし</option>' : '<option value="">全拠点</option>');
+
+      // Default option
+      let defaultText = '全拠点';
+      if (id === 'depBranch' || id === 'newBranch') defaultText = '指定なし (共通)';
+      else if (id === 'subjectBranchFilter') defaultText = '全拠点 (共通含む)';
+
+      sel.innerHTML = `<option value="">${defaultText}</option>`;
+
       branches.forEach(b => {
         const op = document.createElement('option');
         op.value = b; op.text = b;
         sel.appendChild(op);
       });
-      sel.value = currentVal;
+
+      // Restore value or set default
+      if (currentVal) {
+        sel.value = currentVal;
+      } else if (currentUserBranch) {
+        // Default to user's branch if available, BUT only if it exists in the list
+        // Also, for 'newBranch' we might want 'Common' as default? No, user's branch is better.
+        // For filters like 'approveBranchFilter', defaulting to user's branch is good.
+        // Check if option exists
+        if ([...sel.options].some(o => o.value === currentUserBranch)) {
+          sel.value = currentUserBranch;
+        }
+      }
     });
   }
 
@@ -870,35 +896,51 @@
                      onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.6rem; color:#ccc;\'>No Image</span>';">
                 ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
               </div>
-              <div class="d-inputs">
-                <div class="input-group-compact span-full">
+            <div class="d-inputs">
+            <div class="d-inputs">
+              <!-- Line 1: Date & Vendor -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-2">
                   <label>利用日</label>
                   <input type="date" class="d-date" value="${d.usageDate || ''}">
                 </div>
-                <div class="input-group-compact span-full">
+                <div class="input-group-compact flex-4">
                   <label>店名</label>
                   <input type="text" class="d-vendor" value="${safeVendor}" placeholder="店名">
                 </div>
-                <div class="input-group-compact">
-                  <label>金額（円）</label>
-                  <input type="number" class="d-amount" value="${d.amount}" placeholder="金額">
+              </div>
+              
+              <!-- Line 2: Amount, Subject -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-1-5">
+                  <label>金額(円)</label>
+                  <input type="number" class="d-amount" value="${d.amount}" placeholder="0">
                 </div>
-                <div class="input-group-compact">
-                  <label>税率</label>
-                  <select class="d-taxrate">${taxOpts}</select>
-                </div>
-                <div class="input-group-compact">
+                <div class="input-group-compact flex-2-5">
                   <label>科目</label>
                   <select class="d-subject">${subOpts}</select>
                 </div>
-                <div class="input-group-compact">
-                  <label>インボイス登録</label>
+              </div>
+
+              <!-- Line 3: Tax, Invoice -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-1">
+                  <label>税率</label>
+                  <select class="d-taxrate">${taxOpts}</select>
+                </div>
+                <div class="input-group-compact label-wide flex-1-2">
+                  <label>インボイス</label>
                   <select class="d-invoice">${invOpts}</select>
                 </div>
-                <div class="input-group-compact span-full">
-                  <label>備考・利用目的</label>
+              </div>
+
+              <!-- Line 4: Purpose -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-1">
+                  <label>備考</label>
                   <textarea class="d-purpose" placeholder="会議費、接待など" rows="1">${safePurpose}</textarea>
                 </div>
+              </div>
               </div>
             </div>
           </div>
@@ -1132,6 +1174,7 @@
     document.getElementById('newSubject').value = '';
     document.getElementById('newTax').value = '10';
     document.getElementById('newKw').value = '';
+    document.getElementById('newBranch').value = '';
     editingSubjectName = null;
     document.getElementById('updateSubBtn').style.display = 'none';
     document.getElementById('addSubBtn').style.display = 'inline-block';
@@ -1139,9 +1182,15 @@
 
   function renderSubjectList() {
     const div = document.getElementById('subjectListDiv');
-    // subjectMasterWithTax は {name, taxRate, keywords} の配列が入っている前提
-    // loadAdminData で res.subjectList (これは以前は名前配列だったが、Object配列になった) を受け取る必要がある
-    const list = subjectMasterWithTax; // initDataやloadAdminDataで更新される
+    // subjectMasterWithTax は {name, taxRate, keywords, branch} の配列
+    // 拠点フィルタ適用
+    const filterBranch = document.getElementById('subjectBranchFilter').value;
+
+    let list = subjectMasterWithTax;
+
+    if (filterBranch) {
+      list = list.filter(s => s.branch === filterBranch || !s.branch); // 指定拠点 OR 共通
+    }
 
     if (!list || list.length === 0) {
       div.innerHTML = '<div style="color:#94a3b8; text-align:center;">なし</div>';
@@ -1155,19 +1204,20 @@
       return `<div class="master-item">
             <div style="flex:1;">
                 <div style="font-weight:bold;">${name}</div>
-                <div style="font-size:0.8rem; color:#64748b;">税率: ${tax}%</div>
+                <div style="font-size:0.8rem; color:#64748b;">税率: ${tax}% ${s.branch ? `<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; margin-left:8px;">${s.branch}</span>` : '<span style="background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px; margin-left:8px;">共通</span>'}</div>
             </div>
-            <button onclick="startEditSubject('${name}', ${tax}, '${s.keywords || ''}')" style="margin-right:8px; padding:4px 8px; border:1px solid #cbd5e1; background:white; border-radius:4px;">編集</button>
+            <button onclick="startEditSubject('${name}', ${tax}, '${s.keywords || ''}', '${s.branch || ''}')" style="margin-right:8px; padding:4px 8px; border:1px solid #cbd5e1; background:white; border-radius:4px;">編集</button>
             <span class="del-sub" onclick="delSubject('${name}')" style="color:red; cursor:pointer; padding:4px;">✕</span>
           </div>`;
     }).join('');
   }
 
-  function startEditSubject(name, tax, kw) {
+  function startEditSubject(name, tax, kw, branch) {
     editingSubjectName = name;
     document.getElementById('newSubject').value = name;
     document.getElementById('newTax').value = tax;
     document.getElementById('newKw').value = kw;
+    document.getElementById('newBranch').value = branch;
     document.getElementById('updateSubBtn').style.display = 'inline-block';
     document.getElementById('addSubBtn').style.display = 'none';
   }
@@ -1176,6 +1226,7 @@
     const name = document.getElementById('newSubject').value;
     const tax = document.getElementById('newTax').value;
     const kw = document.getElementById('newKw').value;
+    const branch = document.getElementById('newBranch').value;
     if (!name) return;
 
     showLoad('追加中...');
@@ -1189,7 +1240,7 @@
     }).withFailureHandler(e => {
       hideLoad();
       showToast('エラー: ' + e.message, 'error');
-    }).api_addSubject(name, tax, kw);
+    }).api_addSubject(name, tax, kw, branch);
   }
 
   function updateSubject() {
@@ -1197,6 +1248,7 @@
     const name = document.getElementById('newSubject').value;
     const tax = document.getElementById('newTax').value;
     const kw = document.getElementById('newKw').value;
+    const branch = document.getElementById('newBranch').value;
 
     showLoad('更新中...');
     google.script.run.withSuccessHandler(list => {
@@ -1208,7 +1260,7 @@
     }).withFailureHandler(e => {
       hideLoad();
       showToast('エラー: ' + e.message, 'error');
-    }).api_updateSubject(editingSubjectName, name, tax, kw);
+    }).api_updateSubject(editingSubjectName, name, tax, kw, branch);
   }
 
   function delSubject(val) {
@@ -1272,14 +1324,24 @@
     });
 
     // フィルターイベントを設定
-    filter.onchange = applyApplicantFilter;
+    filter.onchange = applyAdminFilters;
+    document.getElementById('approveBranchFilter').onchange = applyAdminFilters;
   }
 
-  function applyApplicantFilter() {
+  function applyAdminFilters() {
     const selectedApplicant = document.getElementById('applicantFilter').value;
-    const filteredList = selectedApplicant
-      ? allPendingList.filter(app => app.applicant === selectedApplicant)
-      : allPendingList;
+    const selectedBranch = document.getElementById('approveBranchFilter').value;
+
+    let filteredList = allPendingList;
+
+    if (selectedApplicant) {
+      filteredList = filteredList.filter(app => app.applicant === selectedApplicant);
+    }
+
+    if (selectedBranch) {
+      // 部署(Apply Dept)でフィルタリング
+      filteredList = filteredList.filter(app => app.dept === selectedBranch);
+    }
 
     // 合計金額を計算
     const totalAmount = filteredList.reduce((sum, app) => sum + Number(app.totalAmount || 0), 0);
@@ -1288,7 +1350,7 @@
     const totalDisplay = document.getElementById('filterTotalDisplay');
     const totalSpan = document.getElementById('filterTotal');
 
-    if (selectedApplicant && filteredList.length > 0) {
+    if (filteredList.length > 0 && (selectedApplicant || selectedBranch)) {
       totalSpan.textContent = totalAmount.toLocaleString();
       totalDisplay.style.display = 'block';
     } else {
@@ -1382,8 +1444,8 @@
       // 申請者リストを動的生成
       populatePaymentApplicantFilter(list);
 
-      renderPaymentHistoryCards(list);
-      updatePaymentSummary(list);
+      // フィルタ初期実行（デフォルトの拠点フィルタを適用するため）
+      filterPaymentList();
     }).withFailureHandler(e => {
       console.error('Payment list fetch failed:', e);
       el.innerHTML = 'エラー発生: ' + e.message;
@@ -1409,6 +1471,7 @@
   function filterPaymentList() {
     const applicantFilter = document.getElementById('paymentApplicantFilter').value;
     const statusFilter = document.getElementById('paymentStatusFilter').value;
+    const branchFilter = document.getElementById('paymentBranchFilter').value;
 
     // Nullチェック
     if (!lastPaymentList || lastPaymentList.length === 0) {
@@ -1420,6 +1483,7 @@
     // フィルタリング
     let filtered = lastPaymentList.filter(app => {
       if (applicantFilter && app.applicant !== applicantFilter) return false;
+      if (branchFilter && app.dept !== branchFilter) return false;
       if (statusFilter) {
         const isPaid = (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID);
         if (statusFilter === APP_CONST.PAYMENT_STATUS.UNPAID && isPaid) return false;

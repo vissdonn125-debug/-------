@@ -1,0 +1,663 @@
+<script>
+    /**
+     * js_admin.html - Admin Dashboard, Approval, Master Data, Payment
+     */
+
+    // ========== Mode Switching ==========
+    function toggleMode() {
+        const btn = document.getElementById('adminBtn');
+        if (!isAdminMode) {
+            isAdminMode = true;
+            document.getElementById('userView').classList.remove('active');
+            document.getElementById('adminView').classList.add('active');
+            if (btn) btn.innerText = '申請へ';
+            loadAdminData();
+            switchView('adminView'); // Use generic switcher for scrolling
+        } else {
+            isAdminMode = false;
+            document.getElementById('adminView').classList.remove('active');
+            document.getElementById('userView').classList.add('active');
+            if (btn) btn.innerText = '管理者';
+            switchView('userView');
+        }
+    }
+
+    // ========== Admin Dashboard ==========
+    function loadAdminData() {
+        showLoad('データ取得中...');
+        google.script.run.withSuccessHandler(res => {
+            hideLoad();
+            // res.subjectList is Object Array
+            subjectMasterWithTax = res.subjectList;
+            subjectMaster = res.subjectList.map(s => s.name);
+
+            allPendingList = res.pendingList;
+            populateApplicantFilter(res.pendingList);
+            populateBranchFilter(res.branches || []);
+            renderAdminCards(res.pendingList);
+        }).withFailureHandler(e => {
+            hideLoad();
+            showToast('取得失敗: ' + e.message, 'error');
+        }).getAdminDashboardData();
+    }
+
+    function populateApplicantFilter(pendingList) {
+        const filter = document.getElementById('applicantFilter');
+        if (!filter) return;
+        const applicants = [...new Set(pendingList.map(app => app.applicant))].sort();
+
+        // Clear existing except first
+        while (filter.children.length > 1) {
+            filter.removeChild(filter.lastChild);
+        }
+
+        applicants.forEach(name => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            filter.appendChild(option);
+        });
+
+        filter.onchange = applyAdminFilters;
+        const brFilter = document.getElementById('approveBranchFilter');
+        if (brFilter) brFilter.onchange = applyAdminFilters;
+    }
+
+    function applyAdminFilters() {
+        const selectedApplicant = document.getElementById('applicantFilter').value;
+        const selectedBranch = document.getElementById('approveBranchFilter').value;
+
+        let filteredList = allPendingList;
+
+        if (selectedApplicant) {
+            filteredList = filteredList.filter(app => app.applicant === selectedApplicant);
+        }
+
+        if (selectedBranch) {
+            filteredList = filteredList.filter(app => app.dept === selectedBranch);
+        }
+
+        const totalAmount = filteredList.reduce((sum, app) => sum + Number(app.totalAmount || 0), 0);
+
+        const totalDisplay = document.getElementById('filterTotalDisplay');
+        const totalSpan = document.getElementById('filterTotal');
+
+        if (filteredList.length > 0 && (selectedApplicant || selectedBranch)) {
+            if (totalSpan) totalSpan.textContent = totalAmount.toLocaleString();
+            if (totalDisplay) totalDisplay.style.display = 'block';
+        } else {
+            if (totalDisplay) totalDisplay.style.display = 'none';
+        }
+
+        renderAdminCards(filteredList);
+    }
+
+    // ========== Admin Cards Rendering ==========
+    function renderAdminCards(list) {
+        const con = document.getElementById('cardContainer');
+        con.innerHTML = '';
+        if (!list || list.length === 0) {
+            con.innerHTML = `
+        <div style="color:white; margin:auto; text-align:center; font-size:1.2rem; font-weight:600; opacity:0.8;">
+        <div style="font-size:3rem; margin-bottom:16px;">✅</div>
+        <div>承認待ちの申請はありません</div>
+        <div style="font-size:1rem; margin-top:8px; opacity:0.6;">全ての申請が処理済みです</div>
+        </div>
+        `;
+            return;
+        }
+
+        const duplicateMap = {};
+        list.forEach(app => {
+            app.details.forEach(detail => {
+                const key = `${app.applicant}_${detail.vendor}_${detail.amount} `;
+                if (!duplicateMap[key]) duplicateMap[key] = [];
+                duplicateMap[key].push({ appId: app.appId, detailId: detail.detailId });
+            });
+        });
+
+        list.forEach(app => {
+            const card = createAdminCardElement(app, duplicateMap);
+            con.appendChild(card);
+        });
+    }
+
+    function createAdminCardElement(app, duplicateMap) {
+        const card = document.createElement('div');
+        card.className = 'admin-card';
+        card.id = 'card-' + app.appId;
+
+        const hasDuplicates = app.details.some(detail => {
+            const key = `${app.applicant}_${detail.vendor}_${detail.amount}`;
+            return duplicateMap && duplicateMap[key] && duplicateMap[key].length > 1;
+        });
+
+        if (hasDuplicates) card.classList.add('duplicate-warning');
+
+        const safeApplicant = escapeHtml(app.applicant);
+        const safeDept = escapeHtml(app.dept || '-');
+        const safeDate = escapeHtml(app.date || app.approvedAt);
+
+        const head = `
+      <div class="ac-header">
+        <div>
+          <div class="ac-user">${safeApplicant} <span class="ac-dept">${safeDept}</span></div>
+          <div style="font-size:0.8rem; color:#64748b;">${safeDate}</div>
+        </div>
+        <div class="ac-total">¥${Number(app.totalAmount).toLocaleString()}</div>
+      </div>
+    `;
+
+        let bodyHtml = '<div class="ac-body" style="display:flex; flex-wrap:wrap; gap:8px;">';
+        app.details.forEach(d => {
+            let subOpts = `<option value="" ${!d.subject ? 'selected' : ''}>--未選択--</option>` +
+                subjectMaster.map(s => {
+                    const safeS = escapeHtml(s);
+                    return `<option value="${safeS}" ${s === d.subject ? 'selected' : ''}>${safeS}</option>`;
+                }).join('');
+
+            const imgId = `img-${d.detailId}`;
+            const detailKey = `${app.applicant}_${d.vendor}_${d.amount}`;
+            const isDuplicate = duplicateMap && duplicateMap[detailKey] && duplicateMap[detailKey].length > 1;
+
+            const invOpts = ['あり', 'なし', '不明'].map(v =>
+                `<option value="${v}" ${v === (d.invoiceReg || '不明') ? 'selected' : ''}>${v}</option>`
+            ).join('');
+
+            const taxOpts = [10, 8].map(t =>
+                `<option value="${t}" ${t === (d.taxRate || 10) ? 'selected' : ''}>${t}%</option>`
+            ).join('');
+
+            const safeVendor = escapeHtml(d.vendor || '');
+            const safePurpose = escapeHtml(d.purpose || '');
+
+            bodyHtml += `
+        <div class="detail-item" id="det-${d.detailId}" ${isDuplicate ? 'style="background: linear-gradient(135deg, #fef2f2, #fee2e2); border-left: 4px solid #ef4444; padding: 12px 0 12px 12px; box-sizing: border-box;"' : ''}>
+          ${isDuplicate ? '<div style="font-size: 0.8rem; color: #dc2626; font-weight: 700; margin-bottom: 8px;">⚠️ 重複の可能性があります</div>' : ''}
+          <div class="d-row">
+            <div class="d-thumb-box" onclick="zoomImage('${imgId}')">
+              <img id="${imgId}" class="d-thumb" style="width:100%; height:100%; object-fit:cover;" 
+                   src="${d.fileId ? 'https://drive.google.com/thumbnail?id=' + d.fileId + '&sz=w200' : ''}" 
+                   data-file-id="${d.fileId || ''}"
+                   loading="lazy"
+                   onerror="this.onerror=null; this.style.display='none'; this.parentNode.innerHTML='<span style=\'font-size:0.6rem; color:#ccc;\'>No Image</span>';">
+              ${(!d.hasImage) ? '<div style="font-size:0.6rem; color:#ccc; text-align:center; margin-top:16px;">No Image</div>' : ''}
+            </div>
+            <div class="d-inputs">
+              <!-- Line 1: Date & Vendor -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-2">
+                  <label>利用日</label>
+                  <input type="date" class="d-date" value="${d.usageDate || ''}">
+                </div>
+                <div class="input-group-compact flex-4">
+                  <label>店名</label>
+                  <input type="text" class="d-vendor" value="${safeVendor}" placeholder="店名">
+                </div>
+              </div>
+              <!-- Line 2: Amount, Subject -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-1-5">
+                  <label>金額(円)</label>
+                  <input type="number" class="d-amount" value="${d.amount}" placeholder="0">
+                </div>
+                <div class="input-group-compact flex-2-5">
+                  <label>科目</label>
+                  <select class="d-subject">${subOpts}</select>
+                </div>
+              </div>
+              <!-- Line 3: Tax, Invoice -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-1">
+                  <label>税率</label>
+                  <select class="d-taxrate">${taxOpts}</select>
+                </div>
+                <div class="input-group-compact label-wide flex-1-2">
+                  <label>インボイス</label>
+                  <select class="d-invoice">${invOpts}</select>
+                </div>
+              </div>
+              <!-- Line 4: Purpose -->
+              <div class="d-row-line">
+                <div class="input-group-compact flex-1">
+                  <label>備考</label>
+                  <textarea class="d-purpose" placeholder="会議費、接待など" rows="1">${safePurpose}</textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+        });
+        bodyHtml += '</div>';
+
+        card.innerHTML = head + bodyHtml;
+
+        const foot = document.createElement('div');
+        foot.className = 'ac-footer';
+
+        const btnRj = document.createElement('button');
+        btnRj.className = 'btn-rj';
+        btnRj.innerText = APP_CONST.STATUS.REJECTED;
+        btnRj.onclick = function () { openConfirm(app.appId, 'reject'); };
+
+        const btnRt = document.createElement('button');
+        btnRt.className = 'btn-rt';
+        btnRt.innerText = APP_CONST.STATUS.RETURNED;
+        btnRt.onclick = function () { openReturnModal(app.appId); };
+
+        const btnAp = document.createElement('button');
+        btnAp.className = 'btn-ap';
+        btnAp.innerText = '承認';
+        btnAp.onclick = function () { openConfirm(app.appId, 'approve'); };
+
+        foot.appendChild(btnRj);
+        foot.appendChild(btnRt);
+        foot.appendChild(btnAp);
+        card.appendChild(foot);
+
+        return card;
+    }
+
+    function loadOneImage(fileId, imgDomId) {
+        google.script.run.withSuccessHandler(b64 => {
+            const img = document.getElementById(imgDomId);
+            if (!img) return;
+            if (b64) {
+                img.src = b64;
+            } else {
+                img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#94a3b8; font-size:0.8rem;">画像なし</div>';
+            }
+        }).withFailureHandler(e => {
+            const img = document.getElementById(imgDomId);
+            if (img) img.parentNode.innerHTML = '<div style="width:100%; height:100%; background:#f1f5f9; display:flex; justify-content:center; align-items:center; color:#ef4444; font-size:0.8rem;">読込エラー</div>';
+        }).api_getReceiptImage(fileId);
+    }
+
+    // ========== Approval / Rejection ==========
+    function openConfirm(appId, action) {
+        pendingAppId = appId;
+        pendingAction = action;
+        const msg = action === 'approve' ? 'この内容で承認しますか？' : '却下しますか？';
+        document.getElementById('confirmMsg').innerText = msg;
+        const yesBtn = document.getElementById('confirmYesBtn');
+        yesBtn.onclick = function () { execProcess(); };
+        document.getElementById('confirmToast').style.display = 'flex';
+    }
+
+    function closeConfirm() {
+        document.getElementById('confirmToast').style.display = 'none';
+        pendingAppId = null;
+        pendingAction = null;
+    }
+
+    function execProcess() {
+        const appId = pendingAppId;
+        const action = pendingAction;
+        closeConfirm();
+
+        const card = document.getElementById('card-' + appId);
+        const details = [];
+        card.querySelectorAll('.detail-item').forEach(row => {
+            const dId = row.id.replace('det-', '');
+            const date = row.querySelector('.d-date').value;
+            const sub = row.querySelector('.d-subject').value;
+            const ven = row.querySelector('.d-vendor').value;
+            const amt = row.querySelector('.d-amount').value;
+            const tax = row.querySelector('.d-taxrate').value;
+            const inv = row.querySelector('.d-invoice').value;
+            const pur = row.querySelector('.d-purpose').value;
+            details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
+        });
+
+        card.style.transition = 'opacity 0.3s, transform 0.3s';
+        card.style.opacity = '0';
+        card.style.transform = 'translateY(-20px)';
+        setTimeout(() => card.remove(), 300);
+
+        google.script.run.withSuccessHandler(() => {
+            showToast('処理完了');
+        }).withFailureHandler(e => {
+            showToast('エラー: ' + e.message, 'error');
+        }).processApplicationWithEdit(appId, action, details);
+    }
+
+    // ========== Return (Send Back) ==========
+    function openReturnModal(appId) {
+        pendingAppId = appId;
+        document.getElementById('returnComment').value = '';
+        document.getElementById('returnModal').style.display = 'flex';
+    }
+    function closeReturnModal() {
+        document.getElementById('returnModal').style.display = 'none';
+        pendingAppId = null;
+    }
+    function execReturn() {
+        const appId = pendingAppId;
+        const comment = document.getElementById('returnComment').value;
+        closeReturnModal();
+
+        const card = document.getElementById('card-' + appId);
+        const details = [];
+        card.querySelectorAll('.detail-item').forEach(row => {
+            const dId = row.id.replace('det-', '');
+            const date = row.querySelector('.d-date').value;
+            const sub = row.querySelector('.d-subject').value;
+            const ven = row.querySelector('.d-vendor').value;
+            const amt = row.querySelector('.d-amount').value;
+            const tax = row.querySelector('.d-taxrate').value;
+            const inv = row.querySelector('.d-invoice').value;
+            const pur = row.querySelector('.d-purpose').value;
+            details.push({ detailId: dId, usageDate: date, subject: sub, vendor: ven, amount: amt, taxRate: tax, invoiceReg: inv, purpose: pur });
+        });
+
+        card.style.transform = 'translateY(-20px)';
+        setTimeout(() => card.remove(), 300);
+
+        google.script.run.withSuccessHandler(() => {
+            showToast('差し戻しを実行しました');
+        }).withFailureHandler(e => {
+            showToast('エラー: ' + e.message, 'error');
+        }).processReturn(appId, comment, details);
+    }
+
+    // ========== Subject Master ==========
+    let editingSubjectName = null;
+
+    function openSubjectMaster() {
+        renderSubjectList();
+        resetSubjectInputs();
+        document.getElementById('subjectModal').style.display = 'flex';
+    }
+    function closeSubjectMaster() {
+        document.getElementById('subjectModal').style.display = 'none';
+        resetSubjectInputs();
+    }
+    function resetSubjectInputs() {
+        document.getElementById('newSubject').value = '';
+        document.getElementById('newTax').value = '10';
+        document.getElementById('newKw').value = '';
+        document.getElementById('newBranch').value = '';
+        editingSubjectName = null;
+        document.getElementById('updateSubBtn').style.display = 'none';
+        document.getElementById('addSubBtn').style.display = 'inline-block';
+    }
+
+    function renderSubjectList() {
+        const div = document.getElementById('subjectListDiv');
+        const filterBranch = document.getElementById('subjectBranchFilter').value;
+        let list = subjectMasterWithTax;
+
+        if (filterBranch) {
+            list = list.filter(s => s.branch === filterBranch || !s.branch);
+        }
+
+        if (!list || list.length === 0) {
+            div.innerHTML = '<div style="color:#94a3b8; text-align:center;">なし</div>';
+            return;
+        }
+
+        div.innerHTML = list.map(s => {
+            const name = s.name || s;
+            const tax = s.taxRate || 10;
+            return `<div class="master-item">
+          <div style="flex:1;">
+              <div style="font-weight:bold;">${name}</div>
+              <div style="font-size:0.8rem; color:#64748b;">税率: ${tax}% ${s.branch ? `<span style="background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:4px; margin-left:8px;">${s.branch}</span>` : '<span style="background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px; margin-left:8px;">共通</span>'}</div>
+          </div>
+          <button onclick="startEditSubject('${name}', ${tax}, '${s.keywords || ''}', '${s.branch || ''}')" style="margin-right:8px; padding:4px 8px; border:1px solid #cbd5e1; background:white; border-radius:4px;">編集</button>
+          <span class="del-sub" onclick="delSubject('${name}')" style="color:red; cursor:pointer; padding:4px;">✕</span>
+        </div>`;
+        }).join('');
+    }
+
+    function startEditSubject(name, tax, kw, branch) {
+        editingSubjectName = name;
+        document.getElementById('newSubject').value = name;
+        document.getElementById('newTax').value = tax;
+        document.getElementById('newKw').value = kw;
+        document.getElementById('newBranch').value = branch;
+        document.getElementById('updateSubBtn').style.display = 'inline-block';
+        document.getElementById('addSubBtn').style.display = 'none';
+    }
+
+    function addSubject() {
+        const name = document.getElementById('newSubject').value;
+        const tax = document.getElementById('newTax').value;
+        const kw = document.getElementById('newKw').value;
+        const branch = document.getElementById('newBranch').value;
+        if (!name) return;
+
+        showLoad('追加中...');
+        google.script.run.withSuccessHandler(list => {
+            hideLoad();
+            showToast('科目を追加しました');
+            updateSubjectGlobal(list);
+            renderSubjectList();
+            resetSubjectInputs();
+        }).withFailureHandler(e => {
+            hideLoad();
+            showToast('エラー: ' + e.message, 'error');
+        }).api_addSubject(name, tax, kw, branch);
+    }
+
+    function updateSubject() {
+        if (!editingSubjectName) return;
+        const name = document.getElementById('newSubject').value;
+        const tax = document.getElementById('newTax').value;
+        const kw = document.getElementById('newKw').value;
+        const branch = document.getElementById('newBranch').value;
+
+        showLoad('更新中...');
+        google.script.run.withSuccessHandler(list => {
+            hideLoad();
+            showToast('科目を更新しました');
+            updateSubjectGlobal(list);
+            renderSubjectList();
+            resetSubjectInputs();
+        }).withFailureHandler(e => {
+            hideLoad();
+            showToast('エラー: ' + e.message, 'error');
+        }).api_updateSubject(editingSubjectName, name, tax, kw, branch);
+    }
+
+    function delSubject(val) {
+        showConfirm(`科目「${val}」を削除しますか？`, () => {
+            showLoad('削除中...');
+            google.script.run.withSuccessHandler(list => {
+                hideLoad();
+                showToast('科目を削除しました');
+                updateSubjectGlobal(list);
+                renderSubjectList();
+            }).withFailureHandler(e => {
+                hideLoad();
+                showToast('エラー: ' + e.message, 'error');
+            }).api_deleteSubject(val);
+        });
+    }
+
+    function updateSubjectGlobal(list) {
+        subjectMasterWithTax = list;
+        subjectMaster = list.map(s => s.name);
+    }
+
+    // ========== Payment Management ==========
+    function loadPaymentList() {
+        const startPicker = document.getElementById('paymentStartDatePicker');
+        const endPicker = document.getElementById('paymentEndDatePicker');
+
+        if (!startPicker.value || !endPicker.value) {
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = now.getMonth() + 1;
+            const mStr = m < 10 ? '0' + m : m;
+            const d = now.getDate();
+            const dStr = d < 10 ? '0' + d : d;
+            if (!startPicker.value) startPicker.value = `${y}-${mStr}-01`;
+            if (!endPicker.value) endPicker.value = `${y}-${mStr}-${dStr}`;
+        }
+
+        const sDate = startPicker.value;
+        const eDate = endPicker.value;
+        const el = document.getElementById('paymentListContainer');
+        el.innerHTML = '<div style="text-align:center;">読み込み中...</div>';
+
+        document.getElementById('paymentApplicantFilter').value = '';
+        document.getElementById('paymentStatusFilter').value = '';
+        document.getElementById('paymentSummaryArea').style.display = 'none';
+
+        google.script.run.withSuccessHandler(list => {
+            lastPaymentList = list;
+            populatePaymentApplicantFilter(list);
+            filterPaymentList();
+        }).withFailureHandler(e => {
+            el.innerHTML = 'エラー発生: ' + e.message;
+            showToast(e.message, 'error');
+        }).api_getPaymentList(sDate, eDate);
+    }
+
+    function populatePaymentApplicantFilter(list) {
+        const sel = document.getElementById('paymentApplicantFilter');
+        while (sel.options.length > 1) sel.remove(1);
+        const applicants = [...new Set(list.map(a => a.applicant))].sort();
+        applicants.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = name;
+            sel.appendChild(opt);
+        });
+    }
+
+    function filterPaymentList() {
+        const applicantFilter = document.getElementById('paymentApplicantFilter').value;
+        const statusFilter = document.getElementById('paymentStatusFilter').value;
+        const branchFilter = document.getElementById('paymentBranchFilter').value;
+
+        if (!lastPaymentList || lastPaymentList.length === 0) {
+            renderPaymentHistoryCards([]);
+            updatePaymentSummary([], applicantFilter, statusFilter);
+            return;
+        }
+
+        let filtered = lastPaymentList.filter(app => {
+            if (applicantFilter && app.applicant !== applicantFilter) return false;
+            if (branchFilter && app.dept !== branchFilter) return false;
+            if (statusFilter) {
+                const isPaid = (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID);
+                if (statusFilter === APP_CONST.PAYMENT_STATUS.UNPAID && isPaid) return false;
+                if (statusFilter === APP_CONST.PAYMENT_STATUS.PAID && !isPaid) return false;
+            }
+            return true;
+        });
+
+        renderPaymentHistoryCards(filtered);
+        updatePaymentSummary(filtered, applicantFilter, statusFilter);
+    }
+
+    function updatePaymentSummary(list, applicantFilter, statusFilter) {
+        const summaryArea = document.getElementById('paymentSummaryArea');
+        const totalEl = document.getElementById('paymentSummaryTotal');
+        const unpaidEl = document.getElementById('paymentSummaryUnpaid');
+        const paidEl = document.getElementById('paymentSummaryPaid');
+        const countEl = document.getElementById('paymentSummaryCount');
+
+        if (!list || list.length === 0) {
+            summaryArea.style.display = 'none';
+            return;
+        }
+
+        let totalAmount = 0;
+        let unpaidAmount = 0;
+        let paidAmount = 0;
+
+        list.forEach(app => {
+            const amt = Number(app.totalAmount) || 0;
+            totalAmount += amt;
+            if (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID) {
+                paidAmount += amt;
+            } else {
+                unpaidAmount += amt;
+            }
+        });
+
+        totalEl.textContent = '¥' + totalAmount.toLocaleString();
+        unpaidEl.textContent = '¥' + unpaidAmount.toLocaleString();
+        paidEl.textContent = '¥' + paidAmount.toLocaleString();
+        countEl.textContent = list.length + '件';
+        summaryArea.style.display = 'grid';
+    }
+
+    function renderPaymentHistoryCards(list) {
+        const con = document.getElementById('paymentListContainer');
+        con.innerHTML = '';
+        if (!list || list.length === 0) {
+            con.innerHTML = '<div style="text-align:center; color:#94a3b8;">対象データがありません</div>';
+            return;
+        }
+
+        list.forEach((app) => {
+            const card = document.createElement('div');
+            card.className = 'admin-card';
+            card.id = 'pay-card-' + app.appId;
+
+            const isPaid = (app.paymentStatus === APP_CONST.PAYMENT_STATUS.PAID);
+            const st = String(app.status || '');
+            const rejectedStatuses = [APP_CONST.STATUS.REJECTED, 'REJECTED'];
+            const isAppRejected = rejectedStatuses.includes(st);
+            const isDeposit = String(app.appId).startsWith('DEP-');
+
+            let payBtnHtml = '';
+            if (!isAppRejected && !isDeposit) {
+                payBtnHtml = `<button onclick="event.stopPropagation(); togglePayment('${app.appId}', ${!isPaid})" style="font-size:0.85rem; padding:6px 16px; border-radius:20px; border:none; background:${isPaid ? '#f1f5f9' : '#10b981'}; color:${isPaid ? '#64748b' : 'white'}; font-weight:700; cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,0.05); transition:all 0.2s;">
+          ${isPaid ? '支払済に戻す' : '支払済にする'}
+        </button>`;
+            }
+
+            let statusChip = '';
+            if (isAppRejected) statusChip = `<span class="pay-status-chip rejected">却下</span>`;
+            else if (isDeposit) statusChip = '';
+            else if (isPaid) statusChip = `<span class="pay-status-chip paid">支払済</span>`;
+            else statusChip = `<span class="pay-status-chip unpaid">未払い</span>`;
+
+            const head = `
+        <div class="pay-card-header" onclick="loadApplicationForEdit('${app.appId}')" style="cursor:pointer;">
+            <div>
+              <div style="font-weight:bold; font-size:1.05rem; color:#1e293b; display:flex; align-items:center; gap:8px;">
+                ${escapeHtml(app.applicant)}
+                ${isDeposit ? '<span style="font-size:0.7rem; background:#fbbf24; color:white; padding:2px 6px; border-radius:4px;">入金/調整</span>' : ''}
+              </div>
+              <div style="font-size:0.8rem; color:#64748b;">${escapeHtml(app.date)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-weight:900; font-size:1.2rem; color:#1e293b;">¥${Number(app.totalAmount).toLocaleString()}</div>
+              <div style="margin-top:4px;">${statusChip}</div>
+            </div>
+        </div>
+      `;
+
+            const act = `
+        <div class="pay-card-actions">
+           ${payBtnHtml}
+        </div>
+      `;
+            card.innerHTML = head + act;
+            con.appendChild(card);
+        });
+    }
+
+    function togglePayment(appId, toPaid) {
+        showLoad('更新中...');
+        google.script.run.withSuccessHandler(res => {
+            hideLoad();
+            showToast('支払いステータスを更新しました');
+            const target = lastPaymentList.find(a => a.appId === appId);
+            if (target) {
+                target.paymentStatus = toPaid ? APP_CONST.PAYMENT_STATUS.PAID : APP_CONST.PAYMENT_STATUS.UNPAID;
+                filterPaymentList();
+            }
+        }).withFailureHandler(e => {
+            hideLoad();
+            showToast('更新失敗: ' + e.message, 'error');
+        }).api_updatePaymentStatus(appId, toPaid);
+    }
+</script>

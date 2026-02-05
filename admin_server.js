@@ -93,105 +93,96 @@ function processApplicationWithEdit(appId, action, details) {
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
 
     // LockService: 排他制御
-    var lock = LockService.getScriptLock();
-    // 最大10秒待機
-    if (lock.tryLock(10000)) {
-        try {
-            // 1. ヘッダ更新
-            var lastRowHead = headerSheet.getLastRow();
-            var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues(); // ID列のみ取得
-            var rowIndex = -1;
+    runWithLock_(function () {
+        // 1. ヘッダ更新
+        var lastRowHead = headerSheet.getLastRow();
+        var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues(); // ID列のみ取得
+        var rowIndex = -1;
 
-            for (var i = 0; i < headData.length; i++) {
-                if (String(headData[i][0]) === String(appId)) {
-                    rowIndex = i + 2;
-                    break;
-                }
+        for (var i = 0; i < headData.length; i++) {
+            if (String(headData[i][0]) === String(appId)) {
+                rowIndex = i + 2;
+                break;
             }
-
-            if (rowIndex === -1) throw new Error('申請が見つかりません');
-
-            // 支払済チェック
-            var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
-            if (currentPayStatus === '支払済') {
-                throw new Error('支払済みの申請は編集・承認・却下できません。支払管理画面で「未払い」に戻してから操作してください。');
-            }
-
-            // ステータス更新
-            var newStatus = (action === 'approve') ? STATUS.APPROVED : STATUS.REJECTED;
-            var timestamp = new Date();
-
-            // 個別にセット
-            headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(newStatus);
-            headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
-
-            if (action === 'approve') {
-                headerSheet.getRange(rowIndex, HEADER_COL.APPROVED_AT).setValue(timestamp);
-            } else {
-                headerSheet.getRange(rowIndex, HEADER_COL.REJECTED_AT).setValue(timestamp);
-
-                // 却下メール送信
-                sendRejectionEmail_(rowIndex, appId, user.name);
-                // チャット通知
-                sendChatNotification_('【却下】申請ID: ' + appId + ' が却下されました。');
-            }
-
-            // 2. 明細更新 (details配列の内容でDetailシートを上書き)
-            if (details && details.length > 0) {
-                var dLastRow = detailSheet.getLastRow();
-                if (dLastRow > 1) {
-                    var dFullRange = detailSheet.getRange(2, 1, dLastRow - 1, DETAIL_COL.COL_COUNT);
-                    var dValues = dFullRange.getValues();
-
-                    // ID列インデックス (0-based)
-                    var idIdx = DETAIL_COL.DETAIL_ID - 1;
-
-                    // 行特定用インデックスマップ (ID -> 0-based row index in dValues)
-                    var dMap = {};
-                    for (var k = 0; k < dValues.length; k++) {
-                        dMap[String(dValues[k][idIdx])] = k;
-                    }
-
-                    var totalAmount = 0;
-                    var modifiedRows = [];
-
-                    details.forEach(function (d) {
-                        var idx = dMap[String(d.detailId)];
-                        if (idx !== undefined) {
-                            var amt = Number(d.amount);
-                            totalAmount += amt;
-
-                            // メモリ上の配列を更新
-                            dValues[idx][DETAIL_COL.USAGE_DATE - 1] = new Date(d.usageDate);
-                            dValues[idx][DETAIL_COL.AMOUNT - 1] = amt;
-                            dValues[idx][DETAIL_COL.TAX_RATE - 1] = d.taxRate;
-                            dValues[idx][DETAIL_COL.VENDOR - 1] = d.vendor;
-                            dValues[idx][DETAIL_COL.SUBJECT - 1] = d.subject;
-                            dValues[idx][DETAIL_COL.PURPOSE - 1] = d.purpose;
-                            dValues[idx][DETAIL_COL.INVOICE_REG - 1] = d.invoiceReg;
-                        }
-                    });
-
-                    // シート全体を一括更新 (パフォーマンス向上)
-                    dFullRange.setValues(dValues);
-
-                    // ヘッダの合計金額も再計算して更新
-                    headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
-                }
-            }
-
-            // ★キャッシュ無効化
-            if (rowIndex > 0) {
-                var appDate = headerSheet.getRange(rowIndex, HEADER_COL.APPLICATION_DATE).getValue();
-                invalidateSnapshots_(appDate);
-            }
-
-        } finally {
-            lock.releaseLock();
         }
-    } else {
-        throw new Error('サーバーが混み合っています。もう一度やり直してください。');
-    }
+
+        if (rowIndex === -1) throw new Error('申請が見つかりません');
+
+        // 支払済チェック
+        var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
+        if (currentPayStatus === '支払済') {
+            throw new Error('支払済みの申請は編集・承認・却下できません。支払管理画面で「未払い」に戻してから操作してください。');
+        }
+
+        // ステータス更新
+        var newStatus = (action === 'approve') ? STATUS.APPROVED : STATUS.REJECTED;
+        var timestamp = new Date();
+
+        // 個別にセット
+        headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(newStatus);
+        headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
+
+        if (action === 'approve') {
+            headerSheet.getRange(rowIndex, HEADER_COL.APPROVED_AT).setValue(timestamp);
+        } else {
+            headerSheet.getRange(rowIndex, HEADER_COL.REJECTED_AT).setValue(timestamp);
+
+            // 却下メール送信
+            sendRejectionEmail_(rowIndex, appId, user.name);
+            // チャット通知
+            sendChatNotification_('【却下】申請ID: ' + appId + ' が却下されました。');
+        }
+
+        // 2. 明細更新 (details配列の内容でDetailシートを上書き)
+        if (details && details.length > 0) {
+            var dLastRow = detailSheet.getLastRow();
+            if (dLastRow > 1) {
+                var dFullRange = detailSheet.getRange(2, 1, dLastRow - 1, DETAIL_COL.COL_COUNT);
+                var dValues = dFullRange.getValues();
+
+                // ID列インデックス (0-based)
+                var idIdx = DETAIL_COL.DETAIL_ID - 1;
+
+                // 行特定用インデックスマップ (ID -> 0-based row index in dValues)
+                var dMap = {};
+                for (var k = 0; k < dValues.length; k++) {
+                    dMap[String(dValues[k][idIdx])] = k;
+                }
+
+                var totalAmount = 0;
+                var modifiedRows = [];
+
+                details.forEach(function (d) {
+                    var idx = dMap[String(d.detailId)];
+                    if (idx !== undefined) {
+                        var amt = Number(d.amount);
+                        totalAmount += amt;
+
+                        // メモリ上の配列を更新
+                        dValues[idx][DETAIL_COL.USAGE_DATE - 1] = new Date(d.usageDate);
+                        dValues[idx][DETAIL_COL.AMOUNT - 1] = amt;
+                        dValues[idx][DETAIL_COL.TAX_RATE - 1] = d.taxRate;
+                        dValues[idx][DETAIL_COL.VENDOR - 1] = d.vendor;
+                        dValues[idx][DETAIL_COL.SUBJECT - 1] = d.subject;
+                        dValues[idx][DETAIL_COL.PURPOSE - 1] = d.purpose;
+                        dValues[idx][DETAIL_COL.INVOICE_REG - 1] = d.invoiceReg;
+                    }
+                });
+
+                // シート全体を一括更新 (パフォーマンス向上)
+                dFullRange.setValues(dValues);
+
+                // ヘッダの合計金額も再計算して更新
+                headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
+            }
+        }
+
+        // ★キャッシュ無効化
+        if (rowIndex > 0) {
+            var appDate = headerSheet.getRange(rowIndex, HEADER_COL.APPLICATION_DATE).getValue();
+            invalidateSnapshots_(appDate);
+        }
+    });
 }
 
 /**
@@ -207,75 +198,68 @@ function processReturn(appId, comment, details) {
     var headerSheet = getSheet_(SHEET_NAMES.HEADER);
     var detailSheet = getSheet_(SHEET_NAMES.DETAIL);
 
-    var lock = LockService.getScriptLock();
-    if (lock.tryLock(10000)) {
-        try {
-            // ヘッダ検索
-            var lastRowHead = headerSheet.getLastRow();
-            var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues();
-            var rowIndex = -1;
-            for (var i = 0; i < headData.length; i++) {
-                if (String(headData[i][0]) === String(appId)) {
-                    rowIndex = i + 2;
-                    break;
-                }
+    runWithLock_(function () {
+        // ヘッダ検索
+        var lastRowHead = headerSheet.getLastRow();
+        var headData = headerSheet.getRange(2, 1, lastRowHead - 1, 1).getValues();
+        var rowIndex = -1;
+        for (var i = 0; i < headData.length; i++) {
+            if (String(headData[i][0]) === String(appId)) {
+                rowIndex = i + 2;
+                break;
             }
-            if (rowIndex === -1) throw new Error('申請が見つかりません');
-
-            // 支払済チェック
-            var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
-            if (currentPayStatus === '支払済') {
-                throw new Error('支払済みの申請は差し戻しできません。支払管理画面で「未払い」に戻してから操作してください。');
-            }
-
-            // 更新
-            var timestamp = new Date();
-            headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(STATUS.RETURNED);
-            headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
-            headerSheet.getRange(rowIndex, HEADER_COL.RETURNED_AT).setValue(timestamp);
-            headerSheet.getRange(rowIndex, HEADER_COL.RETURN_COMMENT).setValue(comment);
-
-            // 明細更新 (一括更新版)
-            if (details && details.length > 0) {
-                var dLastRow = detailSheet.getLastRow();
-                if (dLastRow > 1) {
-                    var dFullRange = detailSheet.getRange(2, 1, dLastRow - 1, DETAIL_COL.COL_COUNT);
-                    var dValues = dFullRange.getValues();
-                    var idIdx = DETAIL_COL.DETAIL_ID - 1;
-                    var dMap = {};
-                    for (var k = 0; k < dValues.length; k++) dMap[String(dValues[k][idIdx])] = k;
-
-                    var totalAmount = 0;
-                    details.forEach(function (d) {
-                        var idx = dMap[String(d.detailId)];
-                        if (idx !== undefined) {
-                            var amt = Number(d.amount);
-                            totalAmount += amt;
-                            dValues[idx][DETAIL_COL.USAGE_DATE - 1] = new Date(d.usageDate);
-                            dValues[idx][DETAIL_COL.AMOUNT - 1] = amt;
-                            dValues[idx][DETAIL_COL.TAX_RATE - 1] = d.taxRate;
-                            dValues[idx][DETAIL_COL.VENDOR - 1] = d.vendor;
-                            dValues[idx][DETAIL_COL.SUBJECT - 1] = d.subject;
-                            dValues[idx][DETAIL_COL.PURPOSE - 1] = d.purpose;
-                            dValues[idx][DETAIL_COL.INVOICE_REG - 1] = d.invoiceReg;
-                        }
-                    });
-                    dFullRange.setValues(dValues);
-                    headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
-                }
-            }
-
-            // ★キャッシュ無効化
-            if (rowIndex > 0) {
-                var appDate = headerSheet.getRange(rowIndex, HEADER_COL.APPLICATION_DATE).getValue();
-                invalidateSnapshots_(appDate);
-            }
-        } finally {
-            lock.releaseLock();
         }
-    } else {
-        throw new Error('サーバーが混み合っています。もう一度やり直してください。');
-    }
+        if (rowIndex === -1) throw new Error('申請が見つかりません');
+
+        // 支払済チェック
+        var currentPayStatus = headerSheet.getRange(rowIndex, HEADER_COL.PAYMENT_STATUS).getValue();
+        if (currentPayStatus === '支払済') {
+            throw new Error('支払済みの申請は差し戻しできません。支払管理画面で「未払い」に戻してから操作してください。');
+        }
+
+        // 更新
+        var timestamp = new Date();
+        headerSheet.getRange(rowIndex, HEADER_COL.STATUS).setValue(STATUS.RETURNED);
+        headerSheet.getRange(rowIndex, HEADER_COL.APPROVER_EMAIL).setValue(user.email);
+        headerSheet.getRange(rowIndex, HEADER_COL.RETURNED_AT).setValue(timestamp);
+        headerSheet.getRange(rowIndex, HEADER_COL.RETURN_COMMENT).setValue(comment);
+
+        // 明細更新 (一括更新版)
+        if (details && details.length > 0) {
+            var dLastRow = detailSheet.getLastRow();
+            if (dLastRow > 1) {
+                var dFullRange = detailSheet.getRange(2, 1, dLastRow - 1, DETAIL_COL.COL_COUNT);
+                var dValues = dFullRange.getValues();
+                var idIdx = DETAIL_COL.DETAIL_ID - 1;
+                var dMap = {};
+                for (var k = 0; k < dValues.length; k++) dMap[String(dValues[k][idIdx])] = k;
+
+                var totalAmount = 0;
+                details.forEach(function (d) {
+                    var idx = dMap[String(d.detailId)];
+                    if (idx !== undefined) {
+                        var amt = Number(d.amount);
+                        totalAmount += amt;
+                        dValues[idx][DETAIL_COL.USAGE_DATE - 1] = new Date(d.usageDate);
+                        dValues[idx][DETAIL_COL.AMOUNT - 1] = amt;
+                        dValues[idx][DETAIL_COL.TAX_RATE - 1] = d.taxRate;
+                        dValues[idx][DETAIL_COL.VENDOR - 1] = d.vendor;
+                        dValues[idx][DETAIL_COL.SUBJECT - 1] = d.subject;
+                        dValues[idx][DETAIL_COL.PURPOSE - 1] = d.purpose;
+                        dValues[idx][DETAIL_COL.INVOICE_REG - 1] = d.invoiceReg;
+                    }
+                });
+                dFullRange.setValues(dValues);
+                headerSheet.getRange(rowIndex, HEADER_COL.TOTAL_AMOUNT).setValue(totalAmount);
+            }
+        }
+
+        // ★キャッシュ無効化
+        if (rowIndex > 0) {
+            var appDate = headerSheet.getRange(rowIndex, HEADER_COL.APPLICATION_DATE).getValue();
+            invalidateSnapshots_(appDate);
+        }
+    });
 
     // 差し戻しメール送信
     sendReturnEmail_(rowIndex, appId, comment);
@@ -371,26 +355,19 @@ function api_getReceiptImage(fileId) {
 /**
  * 科目マスタ追加
  */
-function api_addSubject(name, taxRate, keywords) {
+function api_addSubject(name, taxRate, keywords, branch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
-    var lock = LockService.getScriptLock();
-    if (lock.tryLock(10000)) {
-        try {
-            // 重複チェック
-            var list = sheet.getRange(2, 1, sheet.getLastRow() || 1, 1).getValues().flat().filter(String);
-            if (list.includes(name)) throw new Error('既に存在する科目名です');
+    runWithLock_(function () {
+        // 重複チェック
+        var list = sheet.getRange(2, 1, sheet.getLastRow() || 1, 1).getValues().flat().filter(String);
+        if (list.includes(name)) throw new Error('既に存在する科目名です');
 
-            sheet.appendRow([name, taxRate || 10, keywords || '']);
-        } finally {
-            lock.releaseLock();
-        }
-    } else {
-        throw new Error('サーバーが混み合っています。');
-    }
+        sheet.appendRow([name, taxRate || 10, keywords || '', branch || '']);
+    });
 
     // リストを返す(Object Array)
     return getSubjectListObject_(sheet);
@@ -399,32 +376,26 @@ function api_addSubject(name, taxRate, keywords) {
 /**
  * 科目マスタ更新
  */
-function api_updateSubject(oldName, name, taxRate, keywords) {
+function api_updateSubject(oldName, name, taxRate, keywords, branch) {
     var user = getCurrentUserInfo();
     if (user.role !== 'ADMIN') throw new Error('権限がありません');
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
-    var lock = LockService.getScriptLock();
-    if (lock.tryLock(10000)) {
-        try {
-            var data = sheet.getDataRange().getValues(); // 全データ取得
-            // ヘッダ飛ばして検索
-            for (var i = 1; i < data.length; i++) {
-                if (data[i][0] === oldName) {
-                    // 更新
-                    sheet.getRange(i + 1, 1).setValue(name);
-                    sheet.getRange(i + 1, 2).setValue(taxRate);
-                    sheet.getRange(i + 1, 3).setValue(keywords);
-                    break;
-                }
+    runWithLock_(function () {
+        var data = sheet.getDataRange().getValues(); // 全データ取得
+        // ヘッダ飛ばして検索
+        for (var i = 1; i < data.length; i++) {
+            if (data[i][0] === oldName) {
+                // 更新
+                sheet.getRange(i + 1, 1).setValue(name);
+                sheet.getRange(i + 1, 2).setValue(taxRate);
+                sheet.getRange(i + 1, 3).setValue(keywords);
+                sheet.getRange(i + 1, 4).setValue(branch || '');
+                break;
             }
-        } finally {
-            lock.releaseLock();
         }
-    } else {
-        throw new Error('サーバーが混み合っています。');
-    }
+    });
 
     return getSubjectListObject_(sheet);
 }
@@ -438,26 +409,19 @@ function api_deleteSubject(name) {
 
     var sheet = getSheet_(SHEET_NAMES.SUBJECT_MASTER);
 
-    var lock = LockService.getScriptLock();
-    if (lock.tryLock(10000)) {
-        try {
-            // getLastRow() check to prevent error if empty
-            var lastRow = sheet.getLastRow();
-            if (lastRow > 1) {
-                var values = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
-                // 後ろから削除（行ズレ防止）
-                for (var i = values.length - 1; i >= 0; i--) {
-                    if (values[i] === name) {
-                        sheet.deleteRow(i + 2);
-                    }
+    runWithLock_(function () {
+        // getLastRow() check to prevent error if empty
+        var lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+            var values = sheet.getRange(2, 1, lastRow - 1, 1).getValues().flat();
+            // 後ろから削除（行ズレ防止）
+            for (var i = values.length - 1; i >= 0; i--) {
+                if (values[i] === name) {
+                    sheet.deleteRow(i + 2);
                 }
             }
-        } finally {
-            lock.releaseLock();
         }
-    } else {
-        throw new Error('サーバーが混み合っています。');
-    }
+    });
 
     return getSubjectListObject_(sheet);
 }
@@ -465,9 +429,9 @@ function api_deleteSubject(name) {
 function getSubjectListObject_(sheet) {
     var last = sheet.getLastRow();
     if (last <= 1) return [];
-    var vals = sheet.getRange(2, 1, last - 1, 3).getValues(); // Name, Tax, Keywords
+    var vals = sheet.getRange(2, 1, last - 1, 4).getValues(); // Name, Tax, Keywords, Branch
     return vals.map(function (r) {
-        return { name: r[0], taxRate: r[1], keywords: r[2] };
+        return { name: r[0], taxRate: r[1], keywords: r[2], branch: r[3] || '' };
     }).filter(function (o) { return !!o.name; });
 }
 
@@ -490,20 +454,7 @@ function api_getMonthlyReport(targetMonth, targetBranch) {
     var data = getReportData_(targetMonth);
 
     // ユーザーマスタから拠点情報を取得してマップ化
-    var userBranchMap = {};
-    var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
-    if (sheetUser) {
-        var lastRow = sheetUser.getLastRow();
-        if (lastRow > 1) {
-            // A:ID, B:Email, C:Name, D:Role, E:Manager, F:Branch
-            var uVals = sheetUser.getRange(2, 1, lastRow - 1, 6).getValues();
-            uVals.forEach(function (r) {
-                var email = normalizeEmail_(r[1]);
-                var branch = r[5] || '';
-                if (email) userBranchMap[email] = branch;
-            });
-        }
-    }
+    var userBranchMap = getUserBranchMap_();
 
     // 1. 集計用変数
     var totalIncome = 0;
@@ -647,14 +598,7 @@ function api_getDailyReport(targetDate, targetBranch) {
     // 拠点フィルタ用のマップ作成
     var userBranchMap = {};
     if (targetBranch) {
-        var sheetUser = getSheet_(SHEET_NAMES.USER_MASTER);
-        var lastRowU = sheetUser.getLastRow();
-        if (lastRowU > 1) {
-            var uVals = sheetUser.getRange(2, 2, lastRowU - 1, 5).getValues(); // Email(B) 〜 Branch(F)
-            uVals.forEach(function (r) {
-                userBranchMap[normalizeEmail_(r[0])] = r[4] || '';
-            });
-        }
+        userBranchMap = getUserBranchMap_();
     }
 
     // 対象の申請IDを収集 (申請日でフィルタ)
@@ -960,6 +904,8 @@ function api_getPaymentList(startDate, endDate) {
             status: status,
             approvedAt: Utilities.formatDate(new Date(dateObj), TIMEZONE, 'yyyy/MM/dd'),
             paymentStatus: payStatus,
+            paymentStatus: payStatus,
+            dept: row[HEADER_COL.APPLICANT_DEPT - 1] || '', // ★追加: 部署(拠点)
             details: [] // 必要なら詳細取得ロジックを追加(HeavyになるのでOnDemand推奨)
         });
     }

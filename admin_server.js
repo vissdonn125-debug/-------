@@ -53,8 +53,9 @@ function getAdminDashboardData() {
             var email = row[HEADER_COL.APPLICANT_EMAIL - 1];
             var headerDept = row[HEADER_COL.APPLICANT_DEPT - 1];
 
-            // deptが空の場合、ユーザーマスタから取得
-            var dept = headerDept || userBranchMap[normalizeEmail_(email)] || '';
+            // REF方式: 常にユーザーマスタから拠点を取得（ユーザーマスタにない場合のみヘッダを使用）
+            var userMasterBranch = userBranchMap[normalizeEmail_(email)];
+            var dept = userMasterBranch || headerDept || '';
 
             var appObj = {
                 appId: appId,
